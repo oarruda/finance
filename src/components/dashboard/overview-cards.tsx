@@ -6,9 +6,13 @@ import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import type { Transaction } from '@/lib/types';
 import { collection, query, where } from 'firebase/firestore';
 import { Skeleton } from '../ui/skeleton';
+import { useUserCurrency } from '@/hooks/use-user-currency';
+import { useLanguage } from '@/lib/i18n';
 
 export function OverviewCards() {
     const { firestore, user } = useFirebase();
+    const { currency } = useUserCurrency();
+    const { t } = useLanguage();
 
     const transactionsQuery = useMemoFirebase(() => {
         if (!user) return null;
@@ -23,28 +27,28 @@ export function OverviewCards() {
 
     const overviewData = [
         {
-            label: "Total Balance",
-            value: formatCurrency(totalBalance),
-            change: "+20.1% from last month",
+            label: t('dashboard.totalBalance'),
+            value: formatCurrency(totalBalance, currency),
+            change: `+20.1% ${t('dashboard.comparedToLastMonth')}`,
             changeType: 'positive',
             icon: DollarSign,
         },
         {
-            label: "Total Expenses",
-            value: formatCurrency(totalExpenses),
-            change: "+10.5% from last month",
+            label: t('dashboard.totalExpenses'),
+            value: formatCurrency(totalExpenses, currency),
+            change: `+10.5% ${t('dashboard.comparedToLastMonth')}`,
             changeType: 'negative',
             icon: CreditCard,
         },
         {
-            label: "Total Investments",
-            value: formatCurrency(totalInvestments),
-            change: "+5.2% from last month",
+            label: t('dashboard.totalInvestments'),
+            value: formatCurrency(totalInvestments, currency),
+            change: `+5.2% ${t('dashboard.comparedToLastMonth')}`,
             changeType: 'positive',
             icon: TrendingUp,
         },
         {
-            label: "Active Users",
+            label: t('dashboard.activeUsers'),
             value: "1",
             change: "",
             changeType: 'positive',

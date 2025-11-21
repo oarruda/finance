@@ -1,4 +1,3 @@
-
 'use client';
 import Header from '@/components/dashboard/header';
 import Footer from '@/components/dashboard/footer';
@@ -13,7 +12,7 @@ import { redirect } from 'next/navigation';
 import * as React from 'react';
 import { Loader2 } from 'lucide-react';
 
-export default function DashboardLayout({
+export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;

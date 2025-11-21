@@ -9,9 +9,9 @@ export default function LoginPage() {
             <div className="flex justify-center">
                 <PiggyBank className="size-12 text-primary" />
             </div>
-            <h1 className="text-3xl font-bold font-headline">Family Finance Tracker</h1>
+            <h1 className="text-3xl font-bold font-headline">Bem vindo ao FIN, seu agente financeiro</h1>
             <p className="text-muted-foreground">
-                Sign in to access your financial dashboard.
+                Faça login para acessar seu painel financeiro.
             </p>
         </div>
         <LoginForm />

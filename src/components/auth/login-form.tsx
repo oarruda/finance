@@ -1,38 +1,43 @@
 'use client';
 
-import { useFormState, useFormStatus } from 'react-dom';
-import { loginAction } from '@/lib/actions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardFooter } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@/firebase';
-import { redirect } from 'next/navigation';
-
-function SubmitButton() {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" className="w-full" disabled={pending}>
-      {pending ? <>
-        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-        Signing In...
-      </> : 'Sign In'}
-    </Button>
-  );
-}
+import { useRouter } from 'next/navigation';
+import { loginWithEmailPassword } from '@/lib/auth';
 
 export function LoginForm() {
-  const [state, formAction] = useFormState(loginAction, undefined);
   const { user, isUserLoading } = useUser();
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState<string | undefined>();
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     if (user) {
-      redirect('/dashboard');
+      router.push('/dashboard');
     }
-  }, [user]);
+  }, [user, router]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(undefined);
+    setIsLoading(true);
+
+    const result = await loginWithEmailPassword(email, password);
+    
+    if (!result.success) {
+      setError(result.message);
+      setIsLoading(false);
+    }
+    // Se sucesso, o useEffect acima vai redirecionar
+  };
 
   if (isUserLoading || user) {
     return (
@@ -43,9 +48,16 @@ export function LoginForm() {
   }
 
   return (
-    <form action={formAction}>
+    <form onSubmit={handleSubmit}>
       <Card>
         <CardContent className="space-y-4 pt-6">
+          {error && (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Erro</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -54,29 +66,35 @@ export function LoginForm() {
               type="email"
               placeholder="rafael@rafaelarruda.com"
               required
-              defaultValue="rafael@rafaelarruda.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              disabled={isLoading}
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password">Senha</Label>
             <Input
               id="password"
               name="password"
               type="password"
               required
-              defaultValue="admin123"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={isLoading}
             />
           </div>
-          {state?.message && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Login Failed</AlertTitle>
-              <AlertDescription>{state.message}</AlertDescription>
-            </Alert>
-          )}
         </CardContent>
         <CardFooter>
-          <SubmitButton />
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Entrando...
+              </>
+            ) : (
+              'Entrar'
+            )}
+          </Button>
         </CardFooter>
       </Card>
     </form>

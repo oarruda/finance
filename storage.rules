@@ -1,0 +1,41 @@
+rules_version = '2';
+
+/**
+ * Firebase Storage Security Rules for Profile Photos
+ * 
+ * Structure:
+ * - /users/{userId}/profile.jpg - User profile photos
+ * 
+ * Security Model:
+ * - Users can only upload to their own folder
+ * - Maximum file size: 2MB
+ * - Only image files allowed
+ * - Everyone can read profile photos (for display purposes)
+ */
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    /**
+     * Profile photos
+     * - Users can upload/update/delete only their own profile photo
+     * - File must be an image (jpg, jpeg, png, gif, webp)
+     * - File size must be less than 2MB
+     * - Anyone authenticated can read profile photos
+     */
+    match /users/{userId}/profile.jpg {
+      // Allow read for all authenticated users
+      allow read: if request.auth != null;
+      
+      // Allow write only for the user who owns the folder
+      allow write: if request.auth != null 
+                   && request.auth.uid == userId
+                   && request.resource.size < 2 * 1024 * 1024  // 2MB limit
+                   && request.resource.contentType.matches('image/.*');
+    }
+    
+    // Deny all other access by default
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -18,14 +18,31 @@ import { Badge } from '@/components/ui/badge';
 import { formatCurrency, cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { Button } from '../ui/button';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, Pencil } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
 import type { Transaction } from '@/lib/types';
 import { Skeleton } from '../ui/skeleton';
+import * as React from 'react';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Textarea } from '../ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import { Calendar } from '../ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Calendar as CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/lib/i18n';
 
 export function RecentTransactions() {
     const { firestore, user } = useFirebase();
+    const { toast } = useToast();
+    const { t } = useLanguage();
+    const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
+    const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
+    const [isSaving, setIsSaving] = React.useState(false);
 
     const transactionsQuery = useMemoFirebase(() => {
         if (!user) return null;
@@ -34,28 +51,68 @@ export function RecentTransactions() {
 
     const { data: transactions, isLoading } = useCollection<Transaction>(transactionsQuery);
 
+    const handleEdit = (transaction: Transaction) => {
+        setEditingTransaction(transaction);
+        setIsEditDialogOpen(true);
+    };
+
+    const handleSave = async () => {
+        if (!editingTransaction || !user?.uid || !firestore) return;
+
+        setIsSaving(true);
+        try {
+            const transactionRef = doc(firestore, 'users', user.uid, 'transactions', editingTransaction.id);
+            await updateDoc(transactionRef, {
+                description: editingTransaction.description,
+                amount: editingTransaction.amount,
+                category: editingTransaction.category,
+                currency: editingTransaction.currency || 'BRL',
+                type: editingTransaction.type,
+                date: typeof editingTransaction.date === 'string' ? editingTransaction.date : editingTransaction.date.toISOString(),
+                updatedAt: new Date().toISOString(),
+            });
+
+            toast({
+                title: t('toast.success'),
+                description: t('transactions.updateSuccess'),
+            });
+            setIsEditDialogOpen(false);
+            setEditingTransaction(null);
+        } catch (error) {
+            console.error('Erro ao atualizar transação:', error);
+            toast({
+                variant: 'destructive',
+                title: t('toast.error'),
+                description: t('transactions.updateError'),
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
   return (
     <Card>
       <CardHeader className='sm:flex-row sm:items-center sm:justify-between'>
         <div>
-            <CardTitle>Recent Transactions</CardTitle>
+            <CardTitle>{t('dashboard.recentTransactions')}</CardTitle>
             <CardDescription>
-                A list of your most recent transactions.
+                {t('transactions.recentList')}
             </CardDescription>
         </div>
-        <Button size="sm" variant="outline" onClick={() => alert('Exporting to .xlsx...')}>
+        <Button size="sm" variant="outline" onClick={() => alert('Exportando para .xlsx...')}>
             <Download className="mr-2 h-4 w-4" />
-            Export to .xlsx
+            {t('transactions.exportExcel')}
         </Button>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Description</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead className="hidden sm:table-cell">Date</TableHead>
-              <TableHead className="text-right">Amount</TableHead>
+              <TableHead>{t('transactions.description')}</TableHead>
+              <TableHead>{t('transactions.category')}</TableHead>
+              <TableHead className="hidden sm:table-cell">{t('transactions.date')}</TableHead>
+              <TableHead className="text-right">{t('transactions.amount')}</TableHead>
+              <TableHead className="w-[80px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -65,6 +122,7 @@ export function RecentTransactions() {
                     <TableCell><Skeleton className='h-5 w-20' /></TableCell>
                     <TableCell className="hidden sm:table-cell"><Skeleton className='h-5 w-24' /></TableCell>
                     <TableCell className="text-right"><Skeleton className='h-5 w-16 float-right' /></TableCell>
+                    <TableCell><Skeleton className='h-8 w-8' /></TableCell>
                 </TableRow>
             ))}
             {transactions && transactions.map(transaction => (
@@ -72,14 +130,14 @@ export function RecentTransactions() {
                 <TableCell>
                     <div className="font-medium">{transaction.description}</div>
                     <div className="block sm:hidden text-xs text-muted-foreground">
-                        {formatDistanceToNow(new Date(transaction.date.toDate()), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(transaction.date), { addSuffix: true })}
                     </div>
                 </TableCell>
                 <TableCell>
                   <Badge variant="outline">{transaction.category}</Badge>
                 </TableCell>
                 <TableCell className="hidden sm:table-cell">
-                  {formatDistanceToNow(new Date(transaction.date.toDate()), { addSuffix: true })}
+                  {formatDistanceToNow(new Date(transaction.date), { addSuffix: true })}
                 </TableCell>
                 <TableCell
                   className={cn(
@@ -90,20 +148,161 @@ export function RecentTransactions() {
                   )}
                 >
                   {transaction.type === 'income' ? '+' : ''}
-                  {formatCurrency(transaction.amount, transaction.currency)}
+                  {formatCurrency(transaction.amount, transaction.currency || 'BRL')}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => handleEdit(transaction)}
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
                 </TableCell>
               </TableRow>
             ))}
             {!isLoading && transactions?.length === 0 && (
                 <TableRow>
-                    <TableCell colSpan={4} className="text-center text-muted-foreground">
-                        No transactions found. Add one to get started!
+                    <TableCell colSpan={5} className="text-center text-muted-foreground">
+                        {t('transactions.noData')}
                     </TableCell>
                 </TableRow>
             )}
           </TableBody>
         </Table>
       </CardContent>
+
+      {/* Dialog de Edição */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{t('transactions.editTitle')}</DialogTitle>
+            <DialogDescription>
+              {t('transactions.editDesc')}
+            </DialogDescription>
+          </DialogHeader>
+
+          {editingTransaction && (
+            <div className="space-y-4 py-4">
+              {/* Tipo */}
+              <div className="space-y-2">
+                <Label>{t('transactions.type')}</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant={editingTransaction.type === 'expense' ? 'default' : 'outline'}
+                    className="flex-1"
+                    onClick={() => setEditingTransaction({ ...editingTransaction, type: 'expense' })}
+                  >
+                    {t('transactions.expense')}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant={editingTransaction.type === 'income' ? 'default' : 'outline'}
+                    className="flex-1"
+                    onClick={() => setEditingTransaction({ ...editingTransaction, type: 'income' })}
+                  >
+                    {t('transactions.income')}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Descrição */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-description">{t('transactions.description')}</Label>
+                <Textarea
+                  id="edit-description"
+                  value={editingTransaction.description}
+                  onChange={(e) => setEditingTransaction({ ...editingTransaction, description: e.target.value })}
+                  placeholder={t('transactions.descPlaceholder')}
+                />
+              </div>
+
+              {/* Valor, Moeda e Data */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {/* Valor */}
+                <div className="space-y-2">
+                  <Label htmlFor="edit-amount">{t('transactions.amount')}</Label>
+                  <Input
+                    id="edit-amount"
+                    type="number"
+                    step="0.01"
+                    value={editingTransaction.amount}
+                    onChange={(e) => setEditingTransaction({ ...editingTransaction, amount: parseFloat(e.target.value) })}
+                  />
+                </div>
+
+                {/* Moeda */}
+                <div className="space-y-2">
+                  <Label>{t('transactions.currency')}</Label>
+                  <Select
+                    value={editingTransaction.currency || 'BRL'}
+                    onValueChange={(value) => setEditingTransaction({ ...editingTransaction, currency: value as 'BRL' | 'EUR' | 'USD' })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="BRL">{t('currencies.BRL')}</SelectItem>
+                      <SelectItem value="EUR">{t('currencies.EUR')}</SelectItem>
+                      <SelectItem value="USD">{t('currencies.USD')}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Data */}
+                <div className="space-y-2">
+                  <Label>{t('transactions.date')}</Label>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={cn(
+                          'w-full justify-start text-left font-normal',
+                          !editingTransaction.date && 'text-muted-foreground'
+                        )}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4" />
+                        {editingTransaction.date ? format(new Date(editingTransaction.date), 'dd/MM/yyyy') : t('transactions.selectDate')}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={new Date(editingTransaction.date)}
+                        onSelect={(date) => date && setEditingTransaction({ ...editingTransaction, date: date.toISOString() })}
+                        disabled={(date) => date > new Date() || date < new Date('1900-01-01')}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
+              </div>
+
+              {/* Categoria */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-category">{t('transactions.category')}</Label>
+                <Input
+                  id="edit-category"
+                  value={editingTransaction.category}
+                  onChange={(e) => setEditingTransaction({ ...editingTransaction, category: e.target.value })}
+                  placeholder={t('transactions.categoryPlaceholder')}
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSaving}>
+              {t('transactions.cancel')}
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving}>
+              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t('transactions.save')}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

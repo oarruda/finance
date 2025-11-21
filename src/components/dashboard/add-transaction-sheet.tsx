@@ -19,6 +19,8 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Popover,
   PopoverContent,
@@ -34,51 +36,80 @@ import {
   SheetFooter,
 } from '@/components/ui/sheet';
 import { Textarea } from '../ui/textarea';
-import { addTransactionAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { suggestWiseTransactionCategory } from '@/ai/flows/wise-transaction-category';
+import { useUser, useFirebase } from '@/firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { useLanguage } from '@/lib/i18n';
 
 const formSchema = z.object({
-  amount: z.coerce.number().positive({ message: 'Please enter a positive amount.' }),
+  amount: z.coerce.number().positive({ message: 'Por favor, insira um valor positivo.' }),
   date: z.date({
-    required_error: 'A date for the transaction is required.',
+    required_error: 'Uma data para a transação é obrigatória.',
   }),
-  description: z.string().min(3, { message: 'Description must be at least 3 characters.' }),
-  category: z.string().optional(),
+  description: z.string().min(3, { message: 'A descrição deve ter pelo menos 3 caracteres.' }),
+  category: z.string().min(1, { message: 'A categoria é obrigatória.' }),
+  type: z.enum(['expense', 'income'], { required_error: 'O tipo é obrigatório.' }),
+  currency: z.enum(['BRL', 'EUR', 'USD'], { required_error: 'A moeda é obrigatória.' }),
 });
-
-const WISE_FEE = 0.0399;
 
 export function AddTransactionSheet() {
   const [open, setOpen] = React.useState(false);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
   const { toast } = useToast();
+  const { user } = useUser();
+  const { firestore } = useFirebase();
+  const { t } = useLanguage();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       date: new Date(),
       description: '',
+      type: 'expense',
+      currency: 'BRL',
     },
   });
 
-  const amountInBRL = form.watch('amount') || 0;
-  const convertedAmount = amountInBRL - (amountInBRL * WISE_FEE);
-
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    const result = await addTransactionAction(values);
-    if (result.success) {
-      toast({
-        title: 'Success!',
-        description: result.message,
-      });
-      setOpen(false);
-      form.reset();
-    } else {
+    if (!user?.uid || !firestore) {
       toast({
         variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to add transaction.',
+        title: t('toast.error'),
+        description: t('toast.notAuthenticated'),
+      });
+      return;
+    }
+
+    try {
+      const transactionsRef = collection(firestore, 'users', user.uid, 'transactions');
+      await addDoc(transactionsRef, {
+        description: values.description,
+        amount: values.amount,
+        date: values.date.toISOString(),
+        category: values.category,
+        type: values.type,
+        currency: values.currency,
+        createdAt: new Date().toISOString(),
+      });
+
+      toast({
+        title: t('toast.success'),
+        description: t('transactions.addSuccess'),
+      });
+      setOpen(false);
+      form.reset({
+        date: new Date(),
+        description: '',
+        type: 'expense',
+        currency: 'BRL',
+      });
+    } catch (error) {
+      console.error('Erro ao adicionar transação:', error);
+      toast({
+        variant: 'destructive',
+        title: t('toast.error'),
+        description: t('transactions.addError'),
       });
     }
   }
@@ -86,7 +117,7 @@ export function AddTransactionSheet() {
   async function handleSuggestCategory() {
     const description = form.getValues('description');
     if (!description) {
-      form.setError('description', { message: 'Please enter a description first.' });
+      form.setError('description', { message: 'Por favor, insira uma descrição primeiro.' });
       return;
     }
     setIsSuggesting(true);
@@ -94,7 +125,7 @@ export function AddTransactionSheet() {
         const result = await suggestWiseTransactionCategory({ transactionDetails: description });
         form.setValue('category', result.category);
     } catch (error) {
-        toast({ variant: 'destructive', title: 'AI Suggestion Failed', description: 'Could not suggest a category.' });
+        toast({ variant: 'destructive', title: t('toast.aiSuggestionFailed'), description: t('transactions.suggestionError') });
     } finally {
         setIsSuggesting(false);
     }
@@ -106,26 +137,57 @@ export function AddTransactionSheet() {
       <SheetTrigger asChild>
         <Button>
             <Plus className="-ml-1 mr-2 h-4 w-4" />
-            Add Transaction
+            {t('dashboard.addTransaction')}
         </Button>
       </SheetTrigger>
       <SheetContent>
         <SheetHeader>
-          <SheetTitle>Add WISE Transaction</SheetTitle>
+          <SheetTitle>{t('transaction.addTitle')}</SheetTitle>
           <SheetDescription>
-            Record a new WISE currency exchange from BRL to EUR.
+            {t('transaction.addDesc')}
           </SheetDescription>
         </SheetHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
             <FormField
               control={form.control}
+              name="type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('transaction.type')}</FormLabel>
+                  <FormControl>
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant={field.value === 'expense' ? 'default' : 'outline'}
+                        className="flex-1"
+                        onClick={() => field.onChange('expense')}
+                      >
+                        {t('transaction.expense')}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant={field.value === 'income' ? 'default' : 'outline'}
+                        className="flex-1"
+                        onClick={() => field.onChange('income')}
+                      >
+                        {t('transaction.income')}
+                      </Button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            
+            <FormField
+              control={form.control}
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Description</FormLabel>
+                  <FormLabel>{t('transaction.description')}</FormLabel>
                   <FormControl>
-                    <Textarea placeholder="e.g., Monthly savings for trip" {...field} />
+                    <Textarea placeholder="ex: Aluguel, Supermercado, Salário" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -138,9 +200,9 @@ export function AddTransactionSheet() {
                 name="amount"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel>Amount (BRL)</FormLabel>
+                    <FormLabel>{t('transaction.amount')}</FormLabel>
                     <FormControl>
-                        <Input type="number" placeholder="1000.00" {...field} />
+                        <Input type="number" step="0.01" placeholder="0.00" {...field} />
                     </FormControl>
                     <FormMessage />
                     </FormItem>
@@ -148,81 +210,94 @@ export function AddTransactionSheet() {
                 />
                 <FormField
                 control={form.control}
-                name="date"
+                name="currency"
                 render={({ field }) => (
-                    <FormItem className="flex flex-col pt-2">
-                    <FormLabel className="mb-2">Transaction Date</FormLabel>
-                    <Popover>
-                        <PopoverTrigger asChild>
+                    <FormItem>
+                    <FormLabel>{t('transaction.currency')}</FormLabel>
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
-                            <Button
-                            variant={'outline'}
-                            className={cn(
-                                'w-full pl-3 text-left font-normal',
-                                !field.value && 'text-muted-foreground'
-                            )}
-                            >
-                            {field.value ? (
-                                format(field.value, 'PPP')
-                            ) : (
-                                <span>Pick a date</span>
-                            )}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
+                        <SelectTrigger>
+                            <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
                         </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={field.onChange}
-                            disabled={(date) =>
-                            date > new Date() || date < new Date('1900-01-01')
-                            }
-                            initialFocus
-                        />
-                        </PopoverContent>
-                    </Popover>
+                        <SelectContent>
+                        <SelectItem value="BRL">BRL (R$)</SelectItem>
+                        <SelectItem value="EUR">EUR (€)</SelectItem>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                        </SelectContent>
+                    </Select>
                     <FormMessage />
                     </FormItem>
                 )}
                 />
             </div>
-
-            <div className="space-y-2">
-                <Label>Category</Label>
-                <div className="flex gap-2">
-                    <FormField
-                    control={form.control}
-                    name="category"
-                    render={({ field }) => (
-                        <Input {...field} placeholder="e.g., Travel, Investment" className="flex-grow" />
-                    )}
+            
+            <FormField
+            control={form.control}
+            name="date"
+            render={({ field }) => (
+                <FormItem className="flex flex-col">
+                <FormLabel>{t('transaction.date')}</FormLabel>
+                <Popover>
+                    <PopoverTrigger asChild>
+                    <FormControl>
+                        <Button
+                        variant={'outline'}
+                        className={cn(
+                            'w-full pl-3 text-left font-normal',
+                            !field.value && 'text-muted-foreground'
+                        )}
+                        >
+                        {field.value ? (
+                            format(field.value, 'PPP')
+                        ) : (
+                            <span>Selecione uma data</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                    </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={field.onChange}
+                        disabled={(date) =>
+                        date > new Date() || date < new Date('1900-01-01')
+                        }
+                        initialFocus
                     />
-                    <Button type="button" variant="outline" onClick={handleSuggestCategory} disabled={isSuggesting}>
-                        {isSuggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-primary" />}
-                        <span className="ml-2 hidden sm:inline">Suggest</span>
-                    </Button>
-                </div>
-                 <FormMessage>{form.formState.errors.category?.message}</FormMessage>
-            </div>
+                    </PopoverContent>
+                </Popover>
+                <FormMessage />
+                </FormItem>
+            )}
+            />
 
-            <div className='p-4 rounded-md border bg-muted/50 text-sm space-y-2'>
-                <div className="flex justify-between">
-                    <span className="text-muted-foreground">WISE fee (3.99%):</span>
-                    <span className="font-medium">- {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(amountInBRL * WISE_FEE)}</span>
-                </div>
-                <div className="flex justify-between font-semibold">
-                    <span>You'll receive (EUR):</span>
-                    <span>~ {new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }).format(convertedAmount / 5.85)}</span>
-                </div>
-                <p className="text-xs text-muted-foreground pt-1">Exchange rate is an estimate.</p>
-            </div>
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>{t('transaction.category')}</FormLabel>
+                  <div className="flex gap-2">
+                    <FormControl>
+                      <Input {...field} placeholder="ex: Alimentação, Moradia, Transporte" className="flex-grow" />
+                    </FormControl>
+                    <Button type="button" variant="outline" onClick={handleSuggestCategory} disabled={isSuggesting}>
+                      {isSuggesting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-primary" />}
+                      <span className="ml-2 hidden sm:inline">Sugerir</span>
+                    </Button>
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <SheetFooter className="pt-4">
                 <Button type="submit" disabled={form.formState.isSubmitting}>
                     {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    Save Transaction
+                    {t('transaction.save')}
                 </Button>
             </SheetFooter>
           </form>

@@ -2,22 +2,27 @@
  * This ruleset enforces a strict security model for a Family Finance Tracker application.
  *
  * Core Philosophy:
- * The security model is built on two primary concepts:
- * 1. User Data Isolation: All personal financial data is strictly private and scoped to the user who created it.
- * 2. Role-Based Access Control (RBAC): A separate `roles_admin` collection grants administrative privileges for managing public data and viewing user data for support purposes.
+ * The security model is built on three-tier Role-Based Access Control:
+ * 1. MASTER: Full control - can create/edit/delete everything, manage all users
+ * 2. ADMIN: Management access - can view all data, manage content, but cannot delete users or change master settings
+ * 3. VIEWER: Read-only access - can only view dashboards and reports, no editing capabilities
  *
  * Data Structure:
- * - /users/{userId}: The root path for all user-specific data, including their profile.
- * - /users/{userId}/transactions: Subcollection for a user's general financial transactions.
- * - /users/{userId}/wiseTransactions: Subcollection for a user's Wise-specific transactions.
- * - /exchangeRates: A top-level collection for publicly readable exchange rate data.
- * - /roles_admin: A top-level collection used as a lookup table to identify administrators.
+ * - /users/{userId}: User profiles with role field (master/admin/viewer)
+ * - /users/{userId}/transactions: User's financial transactions
+ * - /users/{userId}/wiseTransactions: User's Wise transactions
+ * - /exchangeRates: Public exchange rate data
+ * - /roles_master: Collection identifying master users (highest privilege)
+ * - /roles_admin: Collection identifying admin users (management privilege)
  *
- * Key Security Decisions:
- * - Path-Based Ownership: All user-private subcollections (`transactions`, `wiseTransactions`) rely on the `/users/{userId}` path for authorization, ensuring users can only access their own data tree. This is simple, performant, and secure.
- * - Admin Privileges: The existence of a document at `/roles_admin/{userId}` grants the user admin rights. Admins are granted read-only access to user data and full control over public collections like `exchangeRates`.
- * - No Client-Side Role Management: The `roles_admin` collection cannot be modified by any client to prevent self-escalation of privileges. It must be managed via the Firebase Console or a trusted backend server.
- * - Public Data Segregation: Publicly accessible data (`exchangeRates`) is stored in a separate top-level collection. This allows for safe and efficient public `list` operations without exposing any private user information.
+ * Permission Matrix:
+ * | Action              | Master | Admin | Viewer |
+ * |---------------------|--------|-------|--------|
+ * | View all data       | ✓      | ✓     | ✓      |
+ * | Create/Edit content | ✓      | ✓     | ✗      |
+ * | Delete content      | ✓      | ✓     | ✗      |
+ * | Manage users        | ✓      | ✗     | ✗      |
+ * | Change roles        | ✓      | ✗     | ✗      |
  */
 rules_version = '2';
 service cloud.firestore {
@@ -53,11 +58,26 @@ service cloud.firestore {
     }
 
     /**
-     * Checks if the requesting user has administrative privileges.
-     * This is determined by the existence of a document in the /roles_admin collection.
+     * Checks if the requesting user has MASTER privileges (highest level).
+     * Masters can do everything including managing users and roles.
+     */
+    function isMaster() {
+      return isSignedIn() && exists(/databases/$(database)/documents/roles_master/$(request.auth.uid));
+    }
+
+    /**
+     * Checks if the requesting user has ADMIN privileges.
+     * Admins can manage content but not users or roles.
      */
     function isAdmin() {
       return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+    }
+
+    /**
+     * Checks if the requesting user has at least ADMIN privileges (Master or Admin).
+     */
+    function isAdminOrAbove() {
+      return isMaster() || isAdmin();
     }
 
     // --------------------------------------------------------------------
@@ -65,48 +85,46 @@ service cloud.firestore {
     // --------------------------------------------------------------------
 
     /**
-     * @description Manages user profile documents. Allows users to create and manage their own profile, and allows admins to view profiles.
-     * @path /users/{userId}
-     * @allow A user creates their own profile document: auth.uid = 'user123', (create) on /users/user123.
-     * @deny A user tries to update another user's profile: auth.uid = 'user123', (update) on /users/user456.
-     * @principle Enforces Self-Creation and Ownership for user profiles.
+     * @description User profiles with role-based access
+     * - Everyone can view all users (for collaboration features)
+     * - Users can create their own profile
+     * - Only Master can update/delete any user
+     * - Users can update their own profile (except role field)
      */
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isAdmin();
-      allow create: if isOwner(userId) && request.resource.data.id == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.id == resource.data.id;
-      allow delete: if isExistingOwner(userId);
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isOwner(userId);
+      allow update: if isMaster() || (isOwner(userId) && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == resource.data.role)); // Can't change own role
+      allow delete: if isMaster();
     }
 
     /**
-     * @description Secures a user's private financial transactions. Only the owner can manage their data. Admins have read-only access.
-     * @path /users/{userId}/transactions/{transactionId}
-     * @allow A user creates a transaction for themselves: auth.uid = 'user123', (create) on /users/user123/transactions/tx456.
-     * @deny A user tries to read another's transaction list: auth.uid = 'user123', (list) on /users/user456/transactions.
-     * @principle Restricts access to a user's own data tree (Path-based Ownership).
+     * @description Financial transactions with role-based access
+     * - Users can create/update/delete their own transactions
+     * - Everyone can view all transactions (for collaboration)
+     * - Admins/Masters have full control over all transactions
      */
     match /users/{userId}/transactions/{transactionId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
+      allow get: if isSignedIn(); // Everyone can view
+      allow list: if isSignedIn(); // Everyone can list
+      allow create: if isOwner(userId) || isAdminOrAbove(); // Owner or Admin+ can create
+      allow update: if isOwner(userId) || isAdminOrAbove(); // Owner or Admin+ can update
+      allow delete: if isOwner(userId) || isAdminOrAbove(); // Owner or Admin+ can delete
     }
 
     /**
-     * @description Secures a user's private Wise transactions. Only the owner can manage their data. Admins have read-only access.
-     * @path /users/{userId}/wiseTransactions/{wiseTransactionId}
-     * @allow A user updates their own Wise transaction: auth.uid = 'user123', (update) on /users/user123/wiseTransactions/wtx789.
-     * @deny An admin tries to delete a user's transaction: auth.uid = 'admin_user', (delete) on /users/user123/wiseTransactions/wtx789.
-     * @principle Restricts access to a user's own data tree (Path-based Ownership).
+     * @description Wise transactions with role-based access
+     * - Viewers: read-only access
+     * - Admins: can create/update/delete
+     * - Masters: full control
      */
     match /users/{userId}/wiseTransactions/{wiseTransactionId} {
-      allow get: if isOwner(userId) || isAdmin();
-      allow list: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && request.resource.data.userId == userId;
-      allow update: if isExistingOwner(userId) && request.resource.data.userId == resource.data.userId;
-      allow delete: if isExistingOwner(userId);
+      allow get: if isSignedIn();
+      allow list: if isSignedIn();
+      allow create: if isAdminOrAbove();
+      allow update: if isAdminOrAbove();
+      allow delete: if isAdminOrAbove();
     }
 
     // --------------------------------------------------------------------
@@ -114,30 +132,37 @@ service cloud.firestore {
     // --------------------------------------------------------------------
 
     /**
-     * @description Manages global exchange rate data. This data is public for all to read, but only admins can create, update, or delete it.
-     * @path /exchangeRates/{exchangeRateId}
-     * @allow Any user (signed in or not) reads an exchange rate: (get) on /exchangeRates/brl-eur-2023.
-     * @deny A non-admin user tries to create a new exchange rate: auth.uid = 'user123', (create) on /exchangeRates/usd-eur-2024.
-     * @principle Implements a "Public Read with Admin-Only Writes" security model.
+     * @description Exchange rates - public read, admin+ write
      */
     match /exchangeRates/{exchangeRateId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isAdmin();
-      allow update: if isAdmin();
-      allow delete: if isAdmin();
+      allow create: if isAdminOrAbove();
+      allow update: if isAdminOrAbove();
+      allow delete: if isAdminOrAbove();
     }
 
     /**
-     * @description Defines which users have admin privileges. This collection is read-only for admins and fully locked down for writes from any client.
-     * @path /roles_admin/{userId}
-     * @allow An admin checks if another user is also an admin: auth.uid = 'admin_user', (get) on /roles_admin/other_admin.
-     * @deny Any client-side user tries to create an admin role: auth.uid = 'hacker_user', (create) on /roles_admin/hacker_user.
-     * @principle Disallows client-side modification of critical access control data to prevent privilege escalation. Roles must be managed server-side.
+     * @description Master roles - highest privilege level
+     * Only masters can read this collection (to verify other masters)
+     * Cannot be modified from client (must use Firebase Console or Admin SDK)
+     */
+    match /roles_master/{userId} {
+      allow get: if isMaster();
+      allow list: if isMaster();
+      allow create: if false;
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    /**
+     * @description Admin roles - management privilege level
+     * Masters and admins can read this collection
+     * Cannot be modified from client
      */
     match /roles_admin/{userId} {
-      allow get: if isAdmin();
-      allow list: if isAdmin();
+      allow get: if isAdminOrAbove();
+      allow list: if isAdminOrAbove();
       allow create: if false;
       allow update: if false;
       allow delete: if false;

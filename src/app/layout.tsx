@@ -8,8 +8,8 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'Family Finance Tracker',
-  description: 'A complete financial control for your family.',
+  title: 'Controle Financeiro Familiar',
+  description: 'Um controle financeiro completo para sua família.',
 };
 
 export default function RootLayout({
@@ -18,7 +18,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="pt-BR" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />

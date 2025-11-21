@@ -1,9 +1,9 @@
 export type Transaction = {
   id: string;
-  date: any; // Allow Firestore Timestamp
+  date: any; // Allow Firestore Timestamp or ISO string
   description: string;
   amount: number;
-  currency: 'BRL' | 'EUR' | 'USD';
+  currency?: 'BRL' | 'EUR' | 'USD';
   category: string;
   type: 'expense' | 'income';
 };
@@ -12,7 +12,7 @@ export type User = {
   id: string;
   name: string;
   email: string;
-  role: 'admin' | 'viewer';
+  role: 'master' | 'admin' | 'viewer';
   avatarUrl: string;
 };
 

@@ -45,7 +45,7 @@ export function UserManagementTable() {
   const { data: users, isLoading, setData } = useCollection<User>(usersQuery);
 
 
-  const handleRoleChange = async (userId: string, newRole: 'admin' | 'viewer') => {
+  const handleRoleChange = async (userId: string, newRole: 'master' | 'admin' | 'viewer') => {
     setUpdatingId(userId);
     const result = await updateUserRoleAction(userId, newRole);
     if (result.success) {
@@ -57,14 +57,14 @@ export function UserManagementTable() {
         );
       }
       toast({
-        title: 'Success',
-        description: 'User role has been updated.',
+        title: 'Sucesso',
+        description: 'Função do usuário atualizada.',
       });
     } else {
         toast({
             variant: 'destructive',
-            title: 'Error',
-            description: result.message ?? 'Failed to update user role.',
+            title: 'Erro',
+            description: result.message ?? 'Falha ao atualizar função do usuário.',
         });
     }
     setUpdatingId(null);
@@ -73,15 +73,16 @@ export function UserManagementTable() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Users</CardTitle>
-        <CardDescription>Manage your team members and their roles.</CardDescription>
+        <CardTitle>Usuários do Sistema</CardTitle>
+        <CardDescription>Gerencie os membros da equipe e suas funções.</CardDescription>
       </CardHeader>
       <CardContent>
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>User</TableHead>
-              <TableHead>Role</TableHead>
+              <TableHead>Usuário</TableHead>
+              <TableHead>Função</TableHead>
+              <TableHead className="w-[100px]">Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -98,6 +99,9 @@ export function UserManagementTable() {
                     </TableCell>
                     <TableCell>
                         <Skeleton className='h-8 w-[120px]' />
+                    </TableCell>
+                    <TableCell>
+                        <Skeleton className='h-8 w-[80px]' />
                     </TableCell>
                 </TableRow>
             ))}
@@ -124,15 +128,18 @@ export function UserManagementTable() {
                     ) : (
                         <Select
                             value={user.role}
-                            onValueChange={(value: 'admin' | 'viewer') =>
+                            onValueChange={(value: 'master' | 'admin' | 'viewer') =>
                             handleRoleChange(user.id, value)
                             }
                             disabled={updatingId !== null}
                         >
-                            <SelectTrigger className="w-[120px]">
-                            <SelectValue placeholder="Select role" />
+                            <SelectTrigger className="w-[140px]">
+                            <SelectValue placeholder="Selecionar função" />
                             </SelectTrigger>
                             <SelectContent>
+                            <SelectItem value="master">
+                                <Badge className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white">Master</Badge>
+                            </SelectItem>
                             <SelectItem value="admin">
                                 <Badge className="bg-primary/80 hover:bg-primary/80">Admin</Badge>
                             </SelectItem>
@@ -142,6 +149,11 @@ export function UserManagementTable() {
                             </SelectContent>
                         </Select>
                     )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <div className="flex items-center gap-2">
+                    {/* Actions will be added here in future */}
                   </div>
                 </TableCell>
               </TableRow>

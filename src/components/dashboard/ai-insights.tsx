@@ -6,9 +6,11 @@ import { Lightbulb, Loader2 } from 'lucide-react';
 import type { Transaction } from '@/lib/types';
 import { collection, query, limit } from 'firebase/firestore';
 import React from 'react';
+import { useLanguage } from '@/lib/i18n';
 
 export function AIInsights() {
   const { firestore, user } = useFirebase();
+  const { t } = useLanguage();
   const [insights, setInsights] = React.useState('');
   const [isLoading, setIsLoading] = React.useState(true);
 
@@ -25,7 +27,7 @@ export function AIInsights() {
         setIsLoading(true);
         try {
           const transactionDataString = JSON.stringify(
-            transactions.map(t => ({...t, date: t.date.toDate()})), // Convert Timestamps
+            transactions.map(t => ({...t, date: new Date(t.date).toISOString()})), // Convert to ISO string
             null, 2
           );
           const result = await transactionInsights({
@@ -34,12 +36,12 @@ export function AIInsights() {
           setInsights(result.insights);
         } catch (error) {
           console.error("Error fetching AI insights:", error);
-          setInsights("Could not load AI insights at this time.");
+          setInsights(t('dashboard.aiInsightsError'));
         } finally {
           setIsLoading(false);
         }
       } else if (transactions && transactions.length === 0) {
-        setInsights("No transaction data available to generate insights.");
+        setInsights(t('dashboard.aiInsightsNoData'));
         setIsLoading(false);
       }
     }
@@ -52,8 +54,8 @@ export function AIInsights() {
       <CardHeader>
         <div className="flex items-start justify-between">
             <div>
-                <CardTitle>AI-Powered Insights</CardTitle>
-                <CardDescription>Suggestions based on your recent activity.</CardDescription>
+                <CardTitle>{t('dashboard.aiInsights')}</CardTitle>
+                <CardDescription>{t('dashboard.aiInsightsDesc')}</CardDescription>
             </div>
             <div className="p-2 bg-primary/10 rounded-lg">
                 <Lightbulb className="h-5 w-5 text-primary" />

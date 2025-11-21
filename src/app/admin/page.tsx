@@ -1,16 +1,35 @@
 import { UserManagementTable } from "@/components/admin/user-management-table";
+import { AdminStats } from "@/components/admin/admin-stats";
+import { AdminActions } from "@/components/admin/admin-actions";
+import { Button } from "@/components/ui/button";
+import { UserPlus } from "lucide-react";
 
 export default function AdminPage() {
     return (
         <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl md:text-3xl font-bold font-headline tracking-tight">
-                    User Management
-                </h1>
-                <p className="text-muted-foreground">
-                    Add new users and manage their roles and permissions.
-                </p>
+            {/* Header Section */}
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-2xl md:text-3xl font-bold font-headline tracking-tight">
+                        Gerenciamento de Usuários
+                    </h1>
+                    <p className="text-muted-foreground">
+                        Gerencie funções e permissões dos usuários do sistema.
+                    </p>
+                </div>
+                <Button size="sm">
+                    <UserPlus className="mr-2 h-4 w-4" />
+                    Novo Usuário
+                </Button>
             </div>
+
+            {/* Stats Cards */}
+            <AdminStats />
+
+            {/* Quick Actions */}
+            <AdminActions />
+
+            {/* User Management Table */}
             <UserManagementTable />
         </div>
     )

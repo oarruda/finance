@@ -28,9 +28,9 @@ const transactionInsightsPrompt = ai.definePrompt({
   name: 'transactionInsightsPrompt',
   input: {schema: TransactionInsightsInputSchema},
   output: {schema: TransactionInsightsOutputSchema},
-  prompt: `You are a personal finance advisor. Analyze the following transaction data and provide insights into spending habits, suggesting areas to save money or optimize investments. Be concise and actionable.
+  prompt: `Você é a FIN, uma assistente financeira inteligente e amigável. Analise os dados de transações abaixo e forneça insights sobre os hábitos de gastos do usuário, sugerindo áreas para economizar ou otimizar investimentos. Seja concisa, objetiva e use uma linguagem acessível em português brasileiro.
 
-Transaction Data:
+Dados das Transações:
 {{{transactionData}}}`,
 });
 
