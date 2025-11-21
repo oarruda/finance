@@ -1,0 +1,263 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user of the Family Finance Tracker application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the User entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "Email address of the user.",
+          "format": "email"
+        },
+        "role": {
+          "type": "string",
+          "description": "Role of the user (e.g., 'admin', 'viewer').",
+          "format": "string"
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "role"
+      ]
+    },
+    "Transaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Transaction",
+      "type": "object",
+      "description": "Represents a financial transaction recorded in the application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Transaction entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N Transaction)"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the transaction.",
+          "format": "date-time"
+        },
+        "amount": {
+          "type": "number",
+          "description": "Amount of the transaction."
+        },
+        "description": {
+          "type": "string",
+          "description": "Description of the transaction."
+        },
+        "category": {
+          "type": "string",
+          "description": "Category of the transaction (e.g., 'Food', 'Rent', 'Investment')."
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "date",
+        "amount",
+        "description",
+        "category"
+      ]
+    },
+    "ExchangeRate": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ExchangeRate",
+      "type": "object",
+      "description": "Represents the exchange rate between two currencies at a specific date.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ExchangeRate entity."
+        },
+        "date": {
+          "type": "string",
+          "description": "Date for which the exchange rate is valid.",
+          "format": "date-time"
+        },
+        "fromCurrency": {
+          "type": "string",
+          "description": "The currency to convert from (e.g., 'BRL')."
+        },
+        "toCurrency": {
+          "type": "string",
+          "description": "The currency to convert to (e.g., 'EUR')."
+        },
+        "rate": {
+          "type": "number",
+          "description": "The exchange rate between the two currencies."
+        }
+      },
+      "required": [
+        "id",
+        "date",
+        "fromCurrency",
+        "toCurrency",
+        "rate"
+      ]
+    },
+    "WiseTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "WiseTransaction",
+      "type": "object",
+      "description": "Represents a transaction made through Wise (formerly TransferWise).",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the WiseTransaction entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to User. (Relationship: User 1:N WiseTransaction)"
+        },
+        "date": {
+          "type": "string",
+          "description": "Date of the Wise transaction.",
+          "format": "date-time"
+        },
+        "amountSent": {
+          "type": "number",
+          "description": "Amount sent in the source currency."
+        },
+        "amountReceived": {
+          "type": "number",
+          "description": "Amount received in the target currency."
+        },
+        "fromCurrency": {
+          "type": "string",
+          "description": "Currency sent from (e.g., 'BRL')."
+        },
+        "toCurrency": {
+          "type": "string",
+          "description": "Currency received in (e.g., 'EUR')."
+        },
+        "wiseFee": {
+          "type": "number",
+          "description": "The fee charged by Wise for the transaction."
+        },
+        "exchangeRateId": {
+          "type": "string",
+          "description": "Reference to ExchangeRate. (Relationship: ExchangeRate 1:N WiseTransaction)"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "date",
+        "amountSent",
+        "amountReceived",
+        "fromCurrency",
+        "toCurrency",
+        "wiseFee",
+        "exchangeRateId"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profiles. Uses path-based ownership for simplified security rules.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/transactions/{transactionId}",
+        "definition": {
+          "entityName": "Transaction",
+          "schema": {
+            "$ref": "#/backend/entities/Transaction"
+          },
+          "description": "Stores transaction data. Uses path-based ownership for access control based on the 'userId' in the path.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user."
+            },
+            {
+              "name": "transactionId",
+              "description": "The unique ID of the transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/wiseTransactions/{wiseTransactionId}",
+        "definition": {
+          "entityName": "WiseTransaction",
+          "schema": {
+            "$ref": "#/backend/entities/WiseTransaction"
+          },
+          "description": "Stores Wise transaction data. Uses path-based ownership for access control based on the 'userId' in the path.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user."
+            },
+            {
+              "name": "wiseTransactionId",
+              "description": "The unique ID of the Wise transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/exchangeRates/{exchangeRateId}",
+        "definition": {
+          "entityName": "ExchangeRate",
+          "schema": {
+            "$ref": "#/backend/entities/ExchangeRate"
+          },
+          "description": "Stores exchange rates. Public read access is intended, but security rules can be added to restrict access if needed.",
+          "params": [
+            {
+              "name": "exchangeRateId",
+              "description": "The unique ID of the exchange rate."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/roles_admin/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Implements DBAC for admin roles. The existence of a document in this collection grants admin privileges.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique ID of the user."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "This Firestore structure is designed to support the Family Finance Tracker application's requirements for secure data storage, role-based access control, and efficient data retrieval. It prioritizes Authorization Independence and DBAC (Database-based Access Control) to enhance security and simplify rules. The structure facilitates secure `list` operations and maintains data integrity. Path-based ownership is favored for private user data. Collaborative data uses the Membership Map model.\n\n**Key Design Decisions:**\n\n*   **/users/{userId}:** Stores user profiles. This collection uses path-based ownership, simplifying security rules related to user profile access.\n*   **/users/{userId}/transactions/{transactionId}:**  Stores transaction data, leveraging path-based ownership for straightforward security rules related to transaction access. No denormalization is required here, as access control is based on the `userId` in the path.\n*   **/users/{userId}/wiseTransactions/{wiseTransactionId}:** Stores Wise transaction data, using path-based ownership for access control. Again, no denormalization is required.\n*   **/exchangeRates/{exchangeRateId}:** Stores exchange rates.  Public read access is intended, as exchange rate data is generally considered public.  If access needs to be restricted, a `role` property and appropriate security rules can be added. Security rules should validate `date`, `fromCurrency` and `toCurrency`.\n*   **/roles_admin/{userId}:** Implements DBAC for admin roles.  The existence of a document in this collection grants admin privileges. Security rules check for the existence of this document to authorize admin actions.\n\n**Authorization Independence and QAPs:**\n\nThe design achieves Authorization Independence by avoiding hierarchical authorization dependencies (`get()` calls). Each document contains the necessary information for authorization. QAPs (Rules are not Filters) are supported through structural segregation. Path-based ownership ensures that listing transactions is secure because rules can authorize the entire collection for a specific user without needing to filter based on document content.\n\n**Scalability and Debuggability:**\n\nThe chosen structure is scalable because Firestore collections are designed to handle large volumes of data. The explicit and standardized naming conventions, combined with the avoidance of complex rule logic, make the structure highly debuggable.  Radical consistency in naming conventions will promote faster debugging and promote a standard security posture."
+  }
+}
