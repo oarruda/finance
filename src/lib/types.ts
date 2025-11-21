@@ -1,6 +1,6 @@
 export type Transaction = {
   id: string;
-  date: string;
+  date: any; // Allow Firestore Timestamp
   description: string;
   amount: number;
   currency: 'BRL' | 'EUR' | 'USD';

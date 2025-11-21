@@ -1,16 +1,54 @@
 'use client';
 
-import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
+import { Bar, BarChart, ResponsiveContainer, XAxis, YAxis } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { expenseChartData } from '@/lib/data';
 import { formatCurrency } from '@/lib/utils';
 import {
   ChartTooltip,
   ChartTooltipContent,
   ChartContainer,
 } from '@/components/ui/chart';
+import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
+import { collection, query } from 'firebase/firestore';
+import type { Transaction } from '@/lib/types';
+import { Skeleton } from '../ui/skeleton';
 
 export function ExpenseChart() {
+    const { firestore, user } = useFirebase();
+    const transactionsQuery = useMemoFirebase(() => {
+        if (!user) return null;
+        return query(collection(firestore, 'users', user.uid, 'transactions'));
+    }, [firestore, user]);
+
+    const { data: transactions, isLoading } = useCollection<Transaction>(transactionsQuery);
+
+    const expenseChartData = transactions
+        ?.filter(t => t.type === 'expense')
+        .reduce((acc, t) => {
+            const existing = acc.find(item => item.category === t.category);
+            if (existing) {
+                existing.amount += Math.abs(t.amount);
+            } else {
+                acc.push({ category: t.category, amount: Math.abs(t.amount) });
+            }
+            return acc;
+        }, [] as { category: string; amount: number; }[]) ?? [];
+
+    if (isLoading) {
+        return (
+            <Card>
+                <CardHeader>
+                    <CardTitle>Expenses by Category</CardTitle>
+                </CardHeader>
+                <CardContent>
+                    <div className="h-80 w-full">
+                        <Skeleton className="h-full w-full" />
+                    </div>
+                </CardContent>
+            </Card>
+        )
+    }
+
   return (
     <Card>
       <CardHeader>

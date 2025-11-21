@@ -1,20 +1,51 @@
+'use client';
 import { transactionInsights } from '@/ai/flows/transaction-insights';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { transactions } from '@/lib/data';
-import { Lightbulb } from 'lucide-react';
+import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
+import { Lightbulb, Loader2 } from 'lucide-react';
+import type { Transaction } from '@/lib/types';
+import { collection, query, limit } from 'firebase/firestore';
+import React from 'react';
 
-export async function AIInsights() {
-  const transactionDataString = JSON.stringify(transactions.slice(0, 5), null, 2);
+export function AIInsights() {
+  const { firestore, user } = useFirebase();
+  const [insights, setInsights] = React.useState('');
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  let insightsResult;
-  try {
-     insightsResult = await transactionInsights({
-        transactionData: transactionDataString,
-      });
-  } catch (error) {
-    console.error("Error fetching AI insights:", error);
-    insightsResult = { insights: "Could not load AI insights at this time. Please check your configuration."}
-  }
+  const transactionsQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(collection(firestore, 'users', user.uid, 'transactions'), limit(10));
+  }, [firestore, user]);
+
+  const { data: transactions } = useCollection<Transaction>(transactionsQuery);
+
+  React.useEffect(() => {
+    async function fetchInsights() {
+      if (transactions && transactions.length > 0) {
+        setIsLoading(true);
+        try {
+          const transactionDataString = JSON.stringify(
+            transactions.map(t => ({...t, date: t.date.toDate()})), // Convert Timestamps
+            null, 2
+          );
+          const result = await transactionInsights({
+            transactionData: transactionDataString,
+          });
+          setInsights(result.insights);
+        } catch (error) {
+          console.error("Error fetching AI insights:", error);
+          setInsights("Could not load AI insights at this time.");
+        } finally {
+          setIsLoading(false);
+        }
+      } else if (transactions && transactions.length === 0) {
+        setInsights("No transaction data available to generate insights.");
+        setIsLoading(false);
+      }
+    }
+
+    fetchInsights();
+  }, [transactions]);
 
   return (
     <Card className="h-full flex flex-col">
@@ -29,10 +60,14 @@ export async function AIInsights() {
             </div>
         </div>
       </CardHeader>
-      <CardContent className="flex-grow">
-        <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-          {insightsResult.insights}
-        </p>
+      <CardContent className="flex-grow flex items-center justify-center">
+        {isLoading ? (
+            <Loader2 className="h-6 w-6 animate-spin text-primary" />
+        ) : (
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+            {insights}
+            </p>
+        )}
       </CardContent>
     </Card>
   );

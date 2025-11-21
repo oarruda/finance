@@ -1,5 +1,7 @@
-import { currencyRates, users } from '@/lib/data';
-import { ArrowRightLeft, PanelLeft } from 'lucide-react';
+'use client';
+
+import { currencyRates } from '@/lib/data';
+import { ArrowRightLeft } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,9 +14,29 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { SidebarTrigger } from '../ui/sidebar';
+import { useUser, useFirebase } from '@/firebase';
+import { Skeleton } from '../ui/skeleton';
+import { signOut } from 'firebase/auth';
 
 export default function Header() {
-  const currentUser = users[0];
+  const { user, isUserLoading } = useUser();
+  const { auth } = useFirebase();
+
+  const handleLogout = () => {
+    signOut(auth);
+  };
+  
+  if (isUserLoading) {
+    return (
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-card/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/60 md:px-6">
+            <div className="md:hidden">
+                <SidebarTrigger />
+            </div>
+            <div className="flex-1" />
+            <Skeleton className="h-9 w-9 rounded-full" />
+        </header>
+    )
+  }
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-card/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-card/60 md:px-6">
@@ -44,22 +66,20 @@ export default function Header() {
               className="overflow-hidden rounded-full h-9 w-9"
             >
               <Avatar className="h-8 w-8">
-                <AvatarImage src={currentUser.avatarUrl} alt={currentUser.name} data-ai-hint="person portrait" />
+                <AvatarImage src={user?.photoURL ?? undefined} alt={user?.displayName ?? ''} data-ai-hint="person portrait" />
                 <AvatarFallback>
-                  {currentUser.name.charAt(0)}
+                  {user?.displayName?.charAt(0) ?? user?.email?.charAt(0)?.toUpperCase()}
                 </AvatarFallback>
               </Avatar>
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuLabel>{currentUser.name}</DropdownMenuLabel>
+            <DropdownMenuLabel>{user?.displayName ?? user?.email}</DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem>Settings</DropdownMenuItem>
             <DropdownMenuItem>Support</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <Link href="/" passHref>
-              <DropdownMenuItem>Logout</DropdownMenuItem>
-            </Link>
+            <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>

@@ -1,7 +1,6 @@
 'use client';
 
 import * as React from 'react';
-import { users as initialUsers } from '@/lib/data';
 import type { User } from '@/lib/types';
 import {
   Table,
@@ -30,21 +29,33 @@ import { updateUserRoleAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '../ui/badge';
 import { Loader2 } from 'lucide-react';
+import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
+import { collection, query } from 'firebase/firestore';
+import { Skeleton } from '../ui/skeleton';
 
 export function UserManagementTable() {
-  const [users, setUsers] = React.useState<User[]>(initialUsers);
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
   const { toast } = useToast();
+  const { firestore } = useFirebase();
+
+  const usersQuery = useMemoFirebase(() => {
+    return query(collection(firestore, 'users'));
+  }, [firestore]);
+
+  const { data: users, isLoading, setData } = useCollection<User>(usersQuery);
+
 
   const handleRoleChange = async (userId: string, newRole: 'admin' | 'viewer') => {
     setUpdatingId(userId);
     const result = await updateUserRoleAction(userId, newRole);
     if (result.success) {
-      setUsers(currentUsers =>
-        currentUsers.map(user =>
-          user.id === userId ? { ...user, role: newRole } : user
-        )
-      );
+      if (setData && users) {
+        setData(
+            users.map(user =>
+            user.id === userId ? { ...user, role: newRole } : user
+          )
+        );
+      }
       toast({
         title: 'Success',
         description: 'User role has been updated.',
@@ -53,7 +64,7 @@ export function UserManagementTable() {
         toast({
             variant: 'destructive',
             title: 'Error',
-            description: 'Failed to update user role.',
+            description: result.message ?? 'Failed to update user role.',
         });
     }
     setUpdatingId(null);
@@ -74,16 +85,32 @@ export function UserManagementTable() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {users.map(user => (
+            {isLoading && Array.from({length: 3}).map((_, i) => (
+                <TableRow key={i}>
+                    <TableCell>
+                        <div className='flex items-center gap-3'>
+                            <Skeleton className='h-10 w-10 rounded-full' />
+                            <div className='space-y-1'>
+                                <Skeleton className='h-5 w-24' />
+                                <Skeleton className='h-4 w-32' />
+                            </div>
+                        </div>
+                    </TableCell>
+                    <TableCell>
+                        <Skeleton className='h-8 w-[120px]' />
+                    </TableCell>
+                </TableRow>
+            ))}
+            {users?.map(user => (
               <TableRow key={user.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar>
                       <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person portrait" />
-                      <AvatarFallback>{user.name.charAt(0)}</AvatarFallback>
+                      <AvatarFallback>{user.name ? user.name.charAt(0) : user.email.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{user.name}</p>
+                      <p className="font-medium">{user.name || user.email}</p>
                       <p className="text-sm text-muted-foreground">
                         {user.email}
                       </p>
