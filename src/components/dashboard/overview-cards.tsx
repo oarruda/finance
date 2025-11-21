@@ -78,14 +78,18 @@ export function OverviewCards() {
 
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-      {overviewData.map(item => (
-        <Card key={item.label}>
+      {overviewData.map((item, index) => (
+        <Card 
+          key={item.label} 
+          className="transition-all duration-300 hover:shadow-lg hover:scale-105 hover:-translate-y-1 animate-in fade-in slide-in-from-bottom-4"
+          style={{ animationDelay: `${index * 100}ms`, animationFillMode: 'backwards' }}
+        >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">{item.label}</CardTitle>
-            <item.icon className="h-4 w-4 text-muted-foreground" />
+            <item.icon className="h-4 w-4 text-muted-foreground transition-transform duration-300 hover:scale-125 hover:rotate-12" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{item.value}</div>
+            <div className="text-2xl font-bold transition-colors duration-300 hover:text-primary">{item.value}</div>
             {item.change && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <span

@@ -89,7 +89,7 @@ export function ExpenseChart() {
     }
 
   return (
-    <Card>
+    <Card className="transition-all duration-300 hover:shadow-lg animate-in fade-in slide-in-from-left-4" style={{ animationDelay: '200ms', animationFillMode: 'backwards' }}>
       <CardHeader>
         <CardTitle>{t('dashboard.expensesByCategory')}</CardTitle>
       </CardHeader>

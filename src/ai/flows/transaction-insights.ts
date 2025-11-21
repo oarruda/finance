@@ -12,6 +12,7 @@ import {z} from 'genkit';
 
 const TransactionInsightsInputSchema = z.object({
   transactionData: z.string().describe('Transaction data from Firestore.'),
+  language: z.string().optional().describe('User language preference (PT-BR, PT-PT, EN-US)'),
 });
 export type TransactionInsightsInput = z.infer<typeof TransactionInsightsInputSchema>;
 
@@ -24,14 +25,29 @@ export async function transactionInsights(input: TransactionInsightsInput): Prom
   return transactionInsightsFlow(input);
 }
 
+function getPromptByLanguage(language: string = 'PT-BR'): string {
+  const prompts: Record<string, string> = {
+    'EN-US': `You are FIN, an intelligent and friendly financial assistant. Analyze the transaction data below and provide insights about the user's spending habits, suggesting areas to save or optimize investments. Be concise, objective, and use accessible language.
+
+Transaction Data:
+{{{transactionData}}}`,
+    'PT-PT': `Você é a FIN, uma assistente financeira inteligente e amigável. Analise os dados de transações abaixo e forneça insights sobre os hábitos de gastos do utilizador, sugerindo áreas para economizar ou otimizar investimentos. Seja concisa, objetiva e use uma linguagem acessível em português europeu.
+
+Dados das Transações:
+{{{transactionData}}}`,
+    'PT-BR': `Você é a FIN, uma assistente financeira inteligente e amigável. Analise os dados de transações abaixo e forneça insights sobre os hábitos de gastos do usuário, sugerindo áreas para economizar ou otimizar investimentos. Seja concisa, objetiva e use uma linguagem acessível em português brasileiro.
+
+Dados das Transações:
+{{{transactionData}}}`,
+  };
+  return prompts[language] || prompts['PT-BR'];
+}
+
 const transactionInsightsPrompt = ai.definePrompt({
   name: 'transactionInsightsPrompt',
   input: {schema: TransactionInsightsInputSchema},
   output: {schema: TransactionInsightsOutputSchema},
-  prompt: `Você é a FIN, uma assistente financeira inteligente e amigável. Analise os dados de transações abaixo e forneça insights sobre os hábitos de gastos do usuário, sugerindo áreas para economizar ou otimizar investimentos. Seja concisa, objetiva e use uma linguagem acessível em português brasileiro.
-
-Dados das Transações:
-{{{transactionData}}}`,
+  prompt: `{{{prompt}}}`,
 });
 
 const transactionInsightsFlow = ai.defineFlow(
@@ -41,7 +57,12 @@ const transactionInsightsFlow = ai.defineFlow(
     outputSchema: TransactionInsightsOutputSchema,
   },
   async input => {
-    const {output} = await transactionInsightsPrompt(input);
+    const prompt = getPromptByLanguage(input.language);
+    const {output} = await ai.generate({
+      model: 'googleai/gemini-2.5-flash',
+      prompt: prompt.replace('{{{transactionData}}}', input.transactionData),
+      output: {schema: TransactionInsightsOutputSchema},
+    });
     return output!;
   }
 );

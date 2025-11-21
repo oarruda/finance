@@ -155,6 +155,7 @@ export function RecentTransactions() {
                     variant="ghost"
                     size="icon"
                     onClick={() => handleEdit(transaction)}
+                    className="transition-all duration-200 hover:scale-110 hover:rotate-12"
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>

@@ -192,6 +192,7 @@ export function SidebarNav() {
           );
           const result = await transactionInsights({
             transactionData: transactionDataString,
+            language: language,
           });
           setInsights(result.insights);
         } catch (error) {
@@ -207,7 +208,7 @@ export function SidebarNav() {
     }
 
     fetchInsights();
-  }, [transactions, t]);
+  }, [transactions, language]);
 
   const formatDateTime = () => {
     try {
@@ -417,10 +418,10 @@ export function SidebarNav() {
         <SidebarGroup>
           <SidebarGroupLabel>{t('sidebar.dailyProverb')}</SidebarGroupLabel>
           <SidebarGroupContent>
-            <Card className="mx-2 my-2">
+            <Card className="mx-2 my-2 transition-all duration-300 hover:shadow-md hover:scale-[1.02] animate-in fade-in slide-in-from-bottom-4" style={{ animationDelay: '400ms', animationFillMode: 'backwards' }}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-2">
-                  <Book className="size-4 text-primary mt-1 flex-shrink-0" />
+                  <Book className="size-4 text-primary mt-1 flex-shrink-0 transition-transform duration-300 hover:scale-125" />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs italic text-muted-foreground leading-relaxed mb-2">
                       "{currentProverb.text}"
@@ -440,10 +441,10 @@ export function SidebarNav() {
         <SidebarGroup>
           <SidebarGroupLabel>{t('dashboard.aiInsights')}</SidebarGroupLabel>
           <SidebarGroupContent>
-            <Card className="mx-2 my-2">
+            <Card className="mx-2 my-2 transition-all duration-300 hover:shadow-md hover:scale-[1.02] animate-in fade-in slide-in-from-bottom-4" style={{ animationDelay: '500ms', animationFillMode: 'backwards' }}>
               <CardContent className="p-4">
                 <div className="flex items-start gap-2">
-                  <Lightbulb className="size-4 text-primary mt-1 flex-shrink-0" />
+                  <Lightbulb className="size-4 text-primary mt-1 flex-shrink-0 transition-transform duration-300 hover:scale-125 hover:rotate-12" />
                   <div className="flex-1 min-w-0">
                     {isLoadingInsights ? (
                       <div className="flex justify-center py-2">
