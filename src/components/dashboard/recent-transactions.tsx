@@ -143,11 +143,11 @@ export function RecentTransactions() {
                   className={cn(
                     'text-right font-medium',
                     transaction.type === 'income'
-                      ? 'text-accent'
-                      : 'text-foreground'
+                      ? 'text-green-500'
+                      : 'text-red-500'
                   )}
                 >
-                  {transaction.type === 'income' ? '+' : ''}
+                  {transaction.type === 'income' ? '+' : '-'}
                   {formatCurrency(transaction.amount, transaction.currency || 'BRL')}
                 </TableCell>
                 <TableCell>

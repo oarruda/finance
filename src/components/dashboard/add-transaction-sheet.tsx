@@ -142,9 +142,9 @@ export function AddTransactionSheet() {
       </SheetTrigger>
       <SheetContent>
         <SheetHeader>
-          <SheetTitle>{t('transaction.addTitle')}</SheetTitle>
+          <SheetTitle>{t('transactions.addTitle')}</SheetTitle>
           <SheetDescription>
-            {t('transaction.addDesc')}
+            {t('transactions.addDesc')}
           </SheetDescription>
         </SheetHeader>
         <Form {...form}>
@@ -154,7 +154,7 @@ export function AddTransactionSheet() {
               name="type"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('transaction.type')}</FormLabel>
+                <FormLabel>{t('transactions.type')}</FormLabel>
                   <FormControl>
                     <div className="flex gap-2">
                       <Button
@@ -163,7 +163,7 @@ export function AddTransactionSheet() {
                         className="flex-1"
                         onClick={() => field.onChange('expense')}
                       >
-                        {t('transaction.expense')}
+                        {t('transactions.expense')}
                       </Button>
                       <Button
                         type="button"
@@ -171,7 +171,7 @@ export function AddTransactionSheet() {
                         className="flex-1"
                         onClick={() => field.onChange('income')}
                       >
-                        {t('transaction.income')}
+                        {t('transactions.income')}
                       </Button>
                     </div>
                   </FormControl>
@@ -185,7 +185,7 @@ export function AddTransactionSheet() {
               name="description"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('transaction.description')}</FormLabel>
+                  <FormLabel>{t('transactions.description')}</FormLabel>
                   <FormControl>
                     <Textarea placeholder="ex: Aluguel, Supermercado, Salário" {...field} />
                   </FormControl>
@@ -200,7 +200,7 @@ export function AddTransactionSheet() {
                 name="amount"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel>{t('transaction.amount')}</FormLabel>
+                    <FormLabel>{t('transactions.amount')}</FormLabel>
                     <FormControl>
                         <Input type="number" step="0.01" placeholder="0.00" {...field} />
                     </FormControl>
@@ -213,7 +213,7 @@ export function AddTransactionSheet() {
                 name="currency"
                 render={({ field }) => (
                     <FormItem>
-                    <FormLabel>{t('transaction.currency')}</FormLabel>
+                    <FormLabel>{t('transactions.currency')}</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
                         <FormControl>
                         <SelectTrigger>
@@ -237,7 +237,7 @@ export function AddTransactionSheet() {
             name="date"
             render={({ field }) => (
                 <FormItem className="flex flex-col">
-                <FormLabel>{t('transaction.date')}</FormLabel>
+                <FormLabel>{t('transactions.date')}</FormLabel>
                 <Popover>
                     <PopoverTrigger asChild>
                     <FormControl>
@@ -249,9 +249,9 @@ export function AddTransactionSheet() {
                         )}
                         >
                         {field.value ? (
-                            format(field.value, 'PPP')
+                            format(new Date(field.value), 'PPP')
                         ) : (
-                            <span>Selecione uma data</span>
+                            <span>{t('transactions.selectDate')}</span>
                         )}
                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
@@ -279,7 +279,7 @@ export function AddTransactionSheet() {
               name="category"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>{t('transaction.category')}</FormLabel>
+                  <FormLabel>{t('transactions.category')}</FormLabel>
                   <div className="flex gap-2">
                     <FormControl>
                       <Input {...field} placeholder="ex: Alimentação, Moradia, Transporte" className="flex-grow" />
@@ -297,7 +297,7 @@ export function AddTransactionSheet() {
             <SheetFooter className="pt-4">
                 <Button type="submit" disabled={form.formState.isSubmitting}>
                     {form.formState.isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                    {t('transaction.save')}
+                    {t('transactions.save')}
                 </Button>
             </SheetFooter>
           </form>

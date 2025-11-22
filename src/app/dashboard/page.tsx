@@ -3,6 +3,7 @@ import { OverviewCards } from '@/components/dashboard/overview-cards';
 import { ExpenseChart } from '@/components/dashboard/expense-chart';
 import { RecentTransactions } from '@/components/dashboard/recent-transactions';
 import { AddTransactionSheet } from '@/components/dashboard/add-transaction-sheet';
+import { DeleteMonthDialog } from '@/components/dashboard/delete-month-dialog';
 import { useLanguage } from '@/lib/i18n';
 
 export default function DashboardPage() {
@@ -19,7 +20,10 @@ export default function DashboardPage() {
             {t('dashboard.overview')}
           </p>
         </div>
-        <AddTransactionSheet />
+        <div className="flex gap-2">
+          <AddTransactionSheet />
+          <DeleteMonthDialog />
+        </div>
       </div>
 
       <OverviewCards />
