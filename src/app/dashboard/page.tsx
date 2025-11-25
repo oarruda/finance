@@ -4,6 +4,7 @@ import { ExpenseChart } from '@/components/dashboard/expense-chart';
 import { RecentTransactions } from '@/components/dashboard/recent-transactions';
 import { AddTransactionSheet } from '@/components/dashboard/add-transaction-sheet';
 import { DeleteMonthDialog } from '@/components/dashboard/delete-month-dialog';
+import { WiseConversionCard } from '@/components/dashboard/conversao-card';
 import { useLanguage } from '@/lib/i18n';
 
 export default function DashboardPage() {
@@ -31,6 +32,10 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2">
         <ExpenseChart />
         <RecentTransactions />
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2">
+        <WiseConversionCard />
       </div>
 
     </div>

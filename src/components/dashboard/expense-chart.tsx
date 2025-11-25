@@ -27,7 +27,7 @@ export function ExpenseChart() {
     const { firestore, user } = useFirebase();
     const { currency } = useUserCurrency();
     const { t } = useLanguage();
-    const [selectedType, setSelectedType] = React.useState<'all' | 'expense' | 'income'>('expense');
+    const [selectedType, setSelectedType] = React.useState<'all' | 'expense' | 'income'>('all');
     const [selectedCategory, setSelectedCategory] = React.useState<string>('all');
     const [dateFrom, setDateFrom] = React.useState<Date | undefined>(undefined);
     const [dateTo, setDateTo] = React.useState<Date | undefined>(undefined);

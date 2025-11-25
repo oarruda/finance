@@ -39,8 +39,9 @@ import { Textarea } from '../ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { suggestWiseTransactionCategory } from '@/ai/flows/wise-transaction-category';
 import { useUser, useFirebase } from '@/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, setDoc, getDoc } from 'firebase/firestore';
 import { useLanguage } from '@/lib/i18n';
+import { Badge } from '@/components/ui/badge';
 
 const formSchema = z.object({
   amount: z.coerce.number().positive({ message: 'Por favor, insira um valor positivo.' }),
@@ -56,6 +57,7 @@ const formSchema = z.object({
 export function AddTransactionSheet() {
   const [open, setOpen] = React.useState(false);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
+  const [recentCategories, setRecentCategories] = React.useState<string[]>([]);
   const { toast } = useToast();
   const { user } = useUser();
   const { firestore } = useFirebase();
@@ -70,6 +72,31 @@ export function AddTransactionSheet() {
       currency: 'BRL',
     },
   });
+
+  // Carregar categorias recentes ao abrir o sheet
+  React.useEffect(() => {
+    if (open && user?.uid && firestore) {
+      const loadCategories = async () => {
+        try {
+          console.log('🔍 Carregando categorias para user:', user.uid);
+          const categoriesRef = doc(firestore, 'users', user.uid, 'settings', 'categories');
+          const categoriesDoc = await getDoc(categoriesRef);
+          console.log('📄 Documento existe:', categoriesDoc.exists());
+          if (categoriesDoc.exists()) {
+            const data = categoriesDoc.data();
+            console.log('📦 Dados do documento:', data);
+            setRecentCategories(data.recent || []);
+            console.log('✅ Categorias carregadas:', data.recent || []);
+          } else {
+            console.log('⚠️ Documento de categorias não existe ainda');
+          }
+        } catch (error) {
+          console.error('❌ Erro ao carregar categorias:', error);
+        }
+      };
+      loadCategories();
+    }
+  }, [open, user, firestore]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     if (!user?.uid || !firestore) {
@@ -93,6 +120,9 @@ export function AddTransactionSheet() {
         createdAt: new Date().toISOString(),
       });
 
+      // Salvar categoria nas recentes
+      await saveCategoryToRecents(values.category);
+
       toast({
         title: t('toast.success'),
         description: t('transactions.addSuccess'),
@@ -111,6 +141,38 @@ export function AddTransactionSheet() {
         title: t('toast.error'),
         description: t('transactions.addError'),
       });
+    }
+  }
+
+  async function saveCategoryToRecents(category: string) {
+    if (!user?.uid || !firestore || !category) return;
+
+    try {
+      console.log('💾 Salvando categoria:', category);
+      const categoriesRef = doc(firestore, 'users', user.uid, 'settings', 'categories');
+      const categoriesDoc = await getDoc(categoriesRef);
+      
+      let categories: string[] = [];
+      if (categoriesDoc.exists()) {
+        categories = categoriesDoc.data().recent || [];
+        console.log('📋 Categorias existentes:', categories);
+      }
+
+      // Remover categoria se já existe (para colocar no início)
+      categories = categories.filter(cat => cat.toLowerCase() !== category.toLowerCase());
+      
+      // Adicionar no início
+      categories.unshift(category);
+      
+      // Manter apenas as últimas 10 categorias
+      categories = categories.slice(0, 10);
+
+      console.log('💾 Salvando categorias atualizadas:', categories);
+      await setDoc(categoriesRef, { recent: categories });
+      setRecentCategories(categories);
+      console.log('✅ Categorias salvas com sucesso!');
+    } catch (error) {
+      console.error('❌ Erro ao salvar categoria:', error);
     }
   }
 
@@ -290,6 +352,31 @@ export function AddTransactionSheet() {
                     </Button>
                   </div>
                   <FormMessage />
+                  
+                  {/* Debug: sempre mostrar a seção */}
+                  <div className="mt-2">
+                    {recentCategories.length > 0 ? (
+                      <>
+                        <p className="text-sm text-muted-foreground mb-2">{t('transactions.recentCategories')}:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {recentCategories.map((category, index) => (
+                            <Badge
+                              key={index}
+                              variant="secondary"
+                              className="cursor-pointer hover:bg-primary hover:text-primary-foreground transition-colors"
+                              onClick={() => form.setValue('category', category)}
+                            >
+                              {category}
+                            </Badge>
+                          ))}
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">
+                        Suas categorias recentes aparecerão aqui após adicionar transações
+                      </p>
+                    )}
+                  </div>
                 </FormItem>
               )}
             />

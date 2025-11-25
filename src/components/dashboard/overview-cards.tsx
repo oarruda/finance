@@ -21,8 +21,9 @@ export function OverviewCards() {
 
     const { data: transactions, isLoading } = useCollection<Transaction>(transactionsQuery);
 
-    const totalBalance = transactions?.reduce((acc, t) => acc + t.amount, 0) ?? 0;
+    const totalIncome = transactions?.filter(t => t.type === 'income').reduce((acc, t) => acc + Math.abs(t.amount), 0) ?? 0;
     const totalExpenses = transactions?.filter(t => t.type === 'expense').reduce((acc, t) => acc + Math.abs(t.amount), 0) ?? 0;
+    const totalBalance = totalIncome - totalExpenses;
     const totalInvestments = transactions?.filter(t => t.category === 'Investments').reduce((acc, t) => acc + Math.abs(t.amount), 0) ?? 0;
 
     const overviewData = [

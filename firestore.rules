@@ -114,6 +114,19 @@ service cloud.firestore {
     }
 
     /**
+     * @description User settings (categories, preferences, etc.)
+     * - Users can read/write their own settings
+     * - Admins/Masters can read all settings
+     */
+    match /users/{userId}/settings/{settingId} {
+      allow get: if isOwner(userId) || isAdminOrAbove();
+      allow list: if isOwner(userId) || isAdminOrAbove();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+
+    /**
      * @description Wise transactions with role-based access
      * - Viewers: read-only access
      * - Admins: can create/update/delete

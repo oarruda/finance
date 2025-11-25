@@ -6,39 +6,51 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Trash2, Calendar as CalendarIcon, Loader2 } from 'lucide-react';
-import { format, startOfMonth, endOfMonth } from 'date-fns';
+import { format, startOfMonth, endOfMonth, startOfDay, endOfDay } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/lib/i18n';
 import { useFirebase } from '@/firebase';
 import { collection, query, where, getDocs, deleteDoc, doc } from 'firebase/firestore';
 
+type DeleteType = 'day' | 'month';
+
 export function DeleteMonthDialog() {
     const { firestore, user } = useFirebase();
     const { toast } = useToast();
     const { t, language } = useLanguage();
-    const [selectedMonth, setSelectedMonth] = React.useState<Date | undefined>(new Date());
+    const [selectedDate, setSelectedDate] = React.useState<Date | undefined>(new Date());
+    const [deleteType, setDeleteType] = React.useState<DeleteType>('month');
     const [isDeleting, setIsDeleting] = React.useState(false);
     const [isOpen, setIsOpen] = React.useState(false);
 
-    const handleDeleteMonth = async () => {
-        if (!selectedMonth || !user?.uid || !firestore) return;
+    const handleDelete = async () => {
+        if (!selectedDate || !user?.uid || !firestore) return;
 
         setIsDeleting(true);
         try {
-            const monthStart = startOfMonth(selectedMonth);
-            const monthEnd = endOfMonth(selectedMonth);
+            let startDate: Date;
+            let endDate: Date;
 
-            // Buscar todas as transações do mês
+            if (deleteType === 'day') {
+                startDate = startOfDay(selectedDate);
+                endDate = endOfDay(selectedDate);
+            } else {
+                startDate = startOfMonth(selectedDate);
+                endDate = endOfMonth(selectedDate);
+            }
+
+            // Buscar todas as transações do período
             const transactionsRef = collection(firestore, 'users', user.uid, 'transactions');
-            const monthQuery = query(
+            const periodQuery = query(
                 transactionsRef,
-                where('date', '>=', monthStart.toISOString()),
-                where('date', '<=', monthEnd.toISOString())
+                where('date', '>=', startDate.toISOString()),
+                where('date', '<=', endDate.toISOString())
             );
             
-            const snapshot = await getDocs(monthQuery);
+            const snapshot = await getDocs(periodQuery);
             
             // Deletar todas as transações
             const deletePromises = snapshot.docs.map(docSnap => 
@@ -49,7 +61,9 @@ export function DeleteMonthDialog() {
 
             toast({
                 title: t('toast.success'),
-                description: t('transactions.deleteMonthSuccess'),
+                description: deleteType === 'day' 
+                    ? t('transactions.deleteDaySuccess') 
+                    : t('transactions.deleteMonthSuccess'),
             });
             setIsOpen(false);
         } catch (error) {
@@ -64,10 +78,13 @@ export function DeleteMonthDialog() {
         }
     };
 
-    const getMonthName = () => {
-        if (!selectedMonth) return '';
+    const getFormattedDate = () => {
+        if (!selectedDate) return '';
         const locale = language === 'PT-BR' || language === 'PT-PT' ? ptBR : undefined;
-        return format(selectedMonth, 'MMMM yyyy', { locale });
+        if (deleteType === 'day') {
+            return format(selectedDate, 'dd/MM/yyyy', { locale });
+        }
+        return format(selectedDate, 'MMMM yyyy', { locale });
     };
 
     return (
@@ -80,40 +97,101 @@ export function DeleteMonthDialog() {
             </AlertDialogTrigger>
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>{t('transactions.deleteMonthTitle')}</AlertDialogTitle>
+                    <AlertDialogTitle>{t('transactions.selectDateToDelete')}</AlertDialogTitle>
                     <AlertDialogDescription>
-                        {selectedMonth 
-                            ? t('transactions.deleteMonthConfirm').replace('{month}', getMonthName())
-                            : t('transactions.deleteMonthDesc')
-                        }
+                        {t('transactions.selectDateToDeleteDesc')}
                     </AlertDialogDescription>
                 </AlertDialogHeader>
                 
-                <div className="py-4">
-                    <Label>{t('transactions.selectMonth')}</Label>
-                    <Popover>
-                        <PopoverTrigger asChild>
-                            <Button variant="outline" className="w-full justify-start text-left font-normal mt-2">
-                                <CalendarIcon className="mr-2 h-4 w-4" />
-                                {selectedMonth ? getMonthName() : t('transactions.selectMonth')}
-                            </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                            <Calendar
-                                mode="single"
-                                selected={selectedMonth}
-                                onSelect={setSelectedMonth}
-                                initialFocus
-                            />
-                        </PopoverContent>
-                    </Popover>
+                <div className="space-y-4 py-4">
+                    <div>
+                        <Label>{t('transactions.deleteType')}</Label>
+                        <RadioGroup value={deleteType} onValueChange={(value) => setDeleteType(value as DeleteType)} className="mt-2">
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="day" id="day" />
+                                <Label htmlFor="day" className="font-normal cursor-pointer">
+                                    {t('transactions.deleteDay')}
+                                </Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <RadioGroupItem value="month" id="month" />
+                                <Label htmlFor="month" className="font-normal cursor-pointer">
+                                    {t('transactions.deleteMonth')}
+                                </Label>
+                            </div>
+                        </RadioGroup>
+                    </div>
+
+                    <div>
+                        <Label>
+                            {deleteType === 'day' ? t('transactions.selectDay') : t('transactions.selectMonth')}
+                        </Label>
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button variant="outline" className="w-full justify-start text-left font-normal mt-2">
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {selectedDate ? getFormattedDate() : t('transactions.selectDate')}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                {deleteType === 'day' ? (
+                                    <Calendar
+                                        mode="single"
+                                        selected={selectedDate}
+                                        onSelect={setSelectedDate}
+                                        initialFocus
+                                    />
+                                ) : (
+                                    <div className="p-3">
+                                        <select
+                                            value={selectedDate ? selectedDate.getMonth() : new Date().getMonth()}
+                                            onChange={(e) => {
+                                                const newDate = new Date(selectedDate || new Date());
+                                                newDate.setMonth(parseInt(e.target.value));
+                                                setSelectedDate(newDate);
+                                            }}
+                                            className="w-full p-2 mb-2 border rounded-md"
+                                        >
+                                            {Array.from({ length: 12 }, (_, i) => {
+                                                const date = new Date(2000, i, 1);
+                                                const locale = language === 'PT-BR' || language === 'PT-PT' ? ptBR : undefined;
+                                                return (
+                                                    <option key={i} value={i}>
+                                                        {format(date, 'MMMM', { locale })}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                        <select
+                                            value={selectedDate ? selectedDate.getFullYear() : new Date().getFullYear()}
+                                            onChange={(e) => {
+                                                const newDate = new Date(selectedDate || new Date());
+                                                newDate.setFullYear(parseInt(e.target.value));
+                                                setSelectedDate(newDate);
+                                            }}
+                                            className="w-full p-2 border rounded-md"
+                                        >
+                                            {Array.from({ length: 10 }, (_, i) => {
+                                                const year = new Date().getFullYear() - 5 + i;
+                                                return (
+                                                    <option key={year} value={year}>
+                                                        {year}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+                                    </div>
+                                )}
+                            </PopoverContent>
+                        </Popover>
+                    </div>
                 </div>
 
                 <AlertDialogFooter>
                     <AlertDialogCancel>{t('transactions.cancel')}</AlertDialogCancel>
                     <AlertDialogAction 
-                        onClick={handleDeleteMonth}
-                        disabled={isDeleting || !selectedMonth}
+                        onClick={handleDelete}
+                        disabled={isDeleting || !selectedDate}
                         className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
                         {isDeleting ? (
