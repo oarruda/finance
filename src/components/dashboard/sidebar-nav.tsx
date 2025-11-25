@@ -112,6 +112,7 @@ export function SidebarNav() {
   // AI Insights state
   const [insights, setInsights] = React.useState('');
   const [isLoadingInsights, setIsLoadingInsights] = React.useState(true);
+  const [showFullInsight, setShowFullInsight] = React.useState(false);
   
   const transactionsQuery = useMemoFirebase(() => {
     if (!user) return null;

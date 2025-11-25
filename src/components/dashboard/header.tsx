@@ -194,7 +194,7 @@ export default function Header() {
         
         {/* Welcome Message */}
         <div className="flex items-center text-white text-base font-thin ml-auto">
-          {t('header.welcome')} {user?.displayName?.split(' ').slice(0, 2).map(name => name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()).join(' ') || user?.email?.split('@')[0]} {t('header.to')} FIN, {t('header.agent')}
+          {t('header.welcome')} {user?.displayName?.split(' ').slice(0, 2).map(name => name.charAt(0).toUpperCase() + name.slice(1).toLowerCase()).join(' ') || user?.email?.split('@')[0]} {t('header.to')} FIN
         </div>
       </div>
       

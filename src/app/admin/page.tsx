@@ -1,8 +1,7 @@
 import { UserManagementTable } from "@/components/admin/user-management-table";
 import { AdminStats } from "@/components/admin/admin-stats";
 import { AdminActions } from "@/components/admin/admin-actions";
-import { Button } from "@/components/ui/button";
-import { UserPlus } from "lucide-react";
+import { AddUserDialog } from "@/components/admin/add-user-dialog";
 
 export default function AdminPage() {
     return (
@@ -17,10 +16,7 @@ export default function AdminPage() {
                         Gerencie funções e permissões dos usuários do sistema.
                     </p>
                 </div>
-                <Button size="sm">
-                    <UserPlus className="mr-2 h-4 w-4" />
-                    Novo Usuário
-                </Button>
+                <AddUserDialog />
             </div>
 
             {/* Stats Cards */}

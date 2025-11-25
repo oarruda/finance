@@ -28,15 +28,37 @@ import {
 import { updateUserRoleAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '../ui/badge';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Trash2, Eye } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
-import { collection, query } from 'firebase/firestore';
+import { collection, query, doc, deleteDoc } from 'firebase/firestore';
 import { Skeleton } from '../ui/skeleton';
+import { Button } from '../ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '../ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '../ui/dialog';
 
 export function UserManagementTable() {
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
+  const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [viewingUser, setViewingUser] = React.useState<User | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+  const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const { toast } = useToast();
-  const { firestore } = useFirebase();
+  const { firestore, user: currentUser } = useFirebase();
 
   const usersQuery = useMemoFirebase(() => {
     return query(collection(firestore, 'users'));
@@ -68,6 +90,54 @@ export function UserManagementTable() {
         });
     }
     setUpdatingId(null);
+  };
+
+  const handleDeleteUser = async () => {
+    if (!userToDelete) return;
+
+    // Não permitir deletar o próprio usuário
+    if (userToDelete.id === currentUser?.uid) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Você não pode deletar sua própria conta.',
+      });
+      setIsDeleteDialogOpen(false);
+      setUserToDelete(null);
+      return;
+    }
+
+    setDeletingId(userToDelete.id);
+    try {
+      // Deletar documento do usuário
+      await deleteDoc(doc(firestore, 'users', userToDelete.id));
+
+      // Atualizar lista local
+      if (setData && users) {
+        setData(users.filter(u => u.id !== userToDelete.id));
+      }
+
+      toast({
+        title: 'Sucesso',
+        description: 'Usuário deletado com sucesso.',
+      });
+    } catch (error) {
+      console.error('Erro ao deletar usuário:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Falha ao deletar usuário. Você precisa ter permissões de Master.',
+      });
+    } finally {
+      setDeletingId(null);
+      setIsDeleteDialogOpen(false);
+      setUserToDelete(null);
+    }
+  };
+
+  const confirmDelete = (user: User) => {
+    setUserToDelete(user);
+    setIsDeleteDialogOpen(true);
   };
 
   return (
@@ -153,7 +223,27 @@ export function UserManagementTable() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    {/* Actions will be added here in future */}
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setViewingUser(user)}
+                      title="Ver detalhes"
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => confirmDelete(user)}
+                      disabled={deletingId === user.id || user.id === currentUser?.uid}
+                      title={user.id === currentUser?.uid ? "Não pode deletar sua própria conta" : "Deletar usuário"}
+                    >
+                      {deletingId === user.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      )}
+                    </Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -161,6 +251,117 @@ export function UserManagementTable() {
           </TableBody>
         </Table>
       </CardContent>
+
+      {/* Dialog de Confirmação de Exclusão */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Deletar Usuário</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja deletar o usuário <strong>{userToDelete?.name || userToDelete?.email}</strong>?
+              Esta ação não pode ser desfeita e todos os dados do usuário serão permanentemente removidos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteUser}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              Deletar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog de Visualização de Usuário */}
+      <Dialog open={!!viewingUser} onOpenChange={() => setViewingUser(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Detalhes do Usuário</DialogTitle>
+            <DialogDescription>
+              Informações completas do usuário selecionado
+            </DialogDescription>
+          </DialogHeader>
+          {viewingUser && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20">
+                  <AvatarImage src={viewingUser.avatarUrl} alt={viewingUser.name} data-ai-hint="person portrait" />
+                  <AvatarFallback className="text-2xl">
+                    {viewingUser.name ? viewingUser.name.charAt(0) : viewingUser.email.charAt(0).toUpperCase()}
+                  </AvatarFallback>
+                </Avatar>
+                <div>
+                  <h3 className="text-xl font-bold">{viewingUser.name || 'Sem nome'}</h3>
+                  <p className="text-muted-foreground">{viewingUser.email}</p>
+                  <Badge className="mt-1">
+                    {viewingUser.role === 'master' && 'Master'}
+                    {viewingUser.role === 'admin' && 'Admin'}
+                    {viewingUser.role === 'viewer' && 'Viewer'}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Nome</p>
+                  <p className="font-medium">{viewingUser.name || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Sobrenome</p>
+                  <p className="font-medium">{viewingUser.lastName || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Email</p>
+                  <p className="font-medium">{viewingUser.email || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Telefone</p>
+                  <p className="font-medium">{viewingUser.phone || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">CPF</p>
+                  <p className="font-medium">{viewingUser.cpf || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Fuso Horário</p>
+                  <p className="font-medium">{viewingUser.timezone || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Moeda Padrão</p>
+                  <p className="font-medium">{viewingUser.defaultCurrency || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Idioma</p>
+                  <p className="font-medium">{viewingUser.defaultLanguage || '-'}</p>
+                </div>
+              </div>
+
+              {(viewingUser.street || viewingUser.city || viewingUser.state) && (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-2">Endereço</p>
+                  <p className="font-medium">
+                    {viewingUser.street && `${viewingUser.street}${viewingUser.number ? `, ${viewingUser.number}` : ''}`}
+                    {viewingUser.complement && ` - ${viewingUser.complement}`}
+                    <br />
+                    {viewingUser.neighborhood && `${viewingUser.neighborhood}, `}
+                    {viewingUser.city && `${viewingUser.city}`}
+                    {viewingUser.state && ` - ${viewingUser.state}`}
+                    <br />
+                    {viewingUser.zipCode && `CEP: ${viewingUser.zipCode}`}
+                  </p>
+                </div>
+              )}
+
+              <div className="text-xs text-muted-foreground">
+                <p>Criado em: {viewingUser.createdAt ? new Date(viewingUser.createdAt).toLocaleString('pt-BR') : '-'}</p>
+                <p>Atualizado em: {viewingUser.updatedAt ? new Date(viewingUser.updatedAt).toLocaleString('pt-BR') : '-'}</p>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

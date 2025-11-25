@@ -19,6 +19,11 @@ export interface UserSettingsData {
   timezone: string;
   defaultCurrency?: 'BRL' | 'EUR' | 'USD';
   defaultLanguage?: 'PT-BR' | 'PT-PT' | 'EN-US';
+  aiProvider?: string;
+  aiApiKey?: string;
+  wiseApiKey?: string;
+  c6ApiKey?: string;
+  exchangeRateApiKey?: string;
 }
 
 export async function uploadProfilePhoto(
@@ -94,6 +99,11 @@ export async function saveUserSettings(
       timezone: data.timezone || 'America/Sao_Paulo',
       defaultCurrency: data.defaultCurrency || 'BRL',
       defaultLanguage: data.defaultLanguage || 'PT-BR',
+      aiProvider: data.aiProvider || 'gemini',
+      aiApiKey: data.aiApiKey || null,
+      wiseApiKey: data.wiseApiKey || null,
+      c6ApiKey: data.c6ApiKey || null,
+      exchangeRateApiKey: data.exchangeRateApiKey || null,
       updatedAt: new Date().toISOString(),
     };
 
@@ -139,6 +149,11 @@ export async function getUserSettings(firestore: any, userId: string) {
         timezone: data?.timezone || 'America/Sao_Paulo',
         defaultCurrency: data?.defaultCurrency || 'BRL',
         defaultLanguage: data?.defaultLanguage || 'PT-BR',
+        aiProvider: data?.aiProvider || 'gemini',
+        aiApiKey: data?.aiApiKey || '',
+        wiseApiKey: data?.wiseApiKey || '',
+        c6ApiKey: data?.c6ApiKey || '',
+        exchangeRateApiKey: data?.exchangeRateApiKey || '',
       },
     };
   } catch (error: any) {

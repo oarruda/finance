@@ -128,16 +128,16 @@ service cloud.firestore {
 
     /**
      * @description Wise transactions with role-based access
-     * - Viewers: read-only access
-     * - Admins: can create/update/delete
-     * - Masters: full control
+     * - Users can create/update/delete their own Wise transactions
+     * - Everyone can view all Wise transactions (for collaboration)
+     * - Admins/Masters have full control over all Wise transactions
      */
     match /users/{userId}/wiseTransactions/{wiseTransactionId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isAdminOrAbove();
-      allow update: if isAdminOrAbove();
-      allow delete: if isAdminOrAbove();
+      allow create: if isOwner(userId) || isAdminOrAbove();
+      allow update: if isOwner(userId) || isAdminOrAbove();
+      allow delete: if isOwner(userId) || isAdminOrAbove();
     }
 
     // --------------------------------------------------------------------
@@ -158,27 +158,27 @@ service cloud.firestore {
     /**
      * @description Master roles - highest privilege level
      * Only masters can read this collection (to verify other masters)
-     * Cannot be modified from client (must use Firebase Console or Admin SDK)
+     * Only masters can manage other masters
      */
     match /roles_master/{userId} {
       allow get: if isMaster();
       allow list: if isMaster();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create: if isMaster();
+      allow update: if isMaster();
+      allow delete: if isMaster();
     }
 
     /**
      * @description Admin roles - management privilege level
      * Masters and admins can read this collection
-     * Cannot be modified from client
+     * Only masters can manage admin roles
      */
     match /roles_admin/{userId} {
       allow get: if isAdminOrAbove();
       allow list: if isAdminOrAbove();
-      allow create: if false;
-      allow update: if false;
-      allow delete: if false;
+      allow create: if isMaster();
+      allow update: if isMaster();
+      allow delete: if isMaster();
     }
 
   }

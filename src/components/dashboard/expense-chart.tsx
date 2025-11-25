@@ -134,19 +134,6 @@ export function ExpenseChart() {
             </SelectContent>
           </Select>
 
-          {/* Filtro por Categoria */}
-          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-[160px]">
-              <SelectValue placeholder={t('transactions.category')} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t('transactions.allCategories')}</SelectItem>
-              {allCategories.map(cat => (
-                <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
           {/* Filtro de Data Inicial */}
           <Popover>
             <PopoverTrigger asChild>

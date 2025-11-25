@@ -54,21 +54,49 @@ export default function DailyProverb() {
     setCurrentProverb(proverbs[index]);
   }, []);
 
+  const [modalOpen, setModalOpen] = React.useState(false);
+  const shortText = currentProverb.text.length > 50 ? currentProverb.text.slice(0, 50) + '...' : currentProverb.text;
+
   return (
-    <div className="border-t bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
-      <div className="container mx-auto px-4 py-6">
-        <div className="flex items-start gap-3">
-          <Book className="size-5 text-primary mt-1 flex-shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm italic text-muted-foreground leading-relaxed mb-2">
-              "{currentProverb.text}"
-            </p>
-            <p className="text-xs font-medium text-primary">
-              {currentProverb.ref} - NTLH
-            </p>
+    <>
+      <div className="border-t bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+        <div className="container mx-auto px-4 py-6">
+          <div className="flex items-start gap-3">
+            <Book className="size-5 text-primary mt-1 flex-shrink-0" />
+            <div className="flex-1">
+              <p className="text-sm italic text-muted-foreground leading-relaxed mb-2">
+                "{shortText}"
+              </p>
+              {currentProverb.text.length > 50 && (
+                <button
+                  className="mb-2 px-3 py-1 rounded bg-zinc-800 text-white text-xs hover:bg-zinc-900 transition"
+                  onClick={() => setModalOpen(true)}
+                >
+                  Ler toda dica
+                </button>
+              )}
+              <p className="text-xs font-medium text-primary">
+                {currentProverb.ref} - NTLH
+              </p>
+            </div>
           </div>
         </div>
       </div>
-    </div>
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
+            <h2 className="text-lg font-bold mb-2">Dica completa</h2>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-4">{currentProverb.text}</p>
+            <p className="text-xs font-medium text-primary mb-4">{currentProverb.ref} - NTLH</p>
+            <button
+              className="px-3 py-1 rounded bg-zinc-800 text-white text-xs hover:bg-zinc-900 transition w-full"
+              onClick={() => setModalOpen(false)}
+            >
+              Fechar
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

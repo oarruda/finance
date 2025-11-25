@@ -281,7 +281,6 @@ export function WiseConversionCard() {
                       <SelectItem key={currency} value={currency}>
                         <div className="flex items-center gap-2">
                           <Image src={currencyFlags[currency]} alt={currency} width={20} height={15} className="rounded" />
-                          <span>{currency} ({getCurrencySymbol(currency)})</span>
                         </div>
                       </SelectItem>
                     ))}
@@ -311,7 +310,6 @@ export function WiseConversionCard() {
                       <SelectItem key={currency} value={currency}>
                         <div className="flex items-center gap-2">
                           <Image src={currencyFlags[currency]} alt={currency} width={20} height={15} className="rounded" />
-                          <span>{currency} ({getCurrencySymbol(currency)})</span>
                         </div>
                       </SelectItem>
                     ))}

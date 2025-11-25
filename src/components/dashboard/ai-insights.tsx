@@ -49,28 +49,56 @@ export function AIInsights() {
     fetchInsights();
   }, [transactions]);
 
+  const [modalOpen, setModalOpen] = React.useState(false);
+
+  const shortText = insights.length > 50 ? insights.slice(0, 50) + '...' : insights;
+
   return (
-    <Card className="h-full flex flex-col">
-      <CardHeader>
-        <div className="flex items-start justify-between">
-            <div>
-                <CardTitle>{t('dashboard.aiInsights')}</CardTitle>
-                <CardDescription>{t('dashboard.aiInsightsDesc')}</CardDescription>
-            </div>
-            <div className="p-2 bg-primary/10 rounded-lg">
-                <Lightbulb className="h-5 w-5 text-primary" />
-            </div>
+    <>
+      <Card className="h-full flex flex-col">
+        <CardHeader>
+          <div className="flex items-start justify-between">
+              <div>
+                  <CardTitle>{t('dashboard.aiInsights')}</CardTitle>
+                  <CardDescription>{t('dashboard.aiInsightsDesc')}</CardDescription>
+              </div>
+              <div className="p-2 bg-primary/10 rounded-lg">
+                  <Lightbulb className="h-5 w-5 text-primary" />
+              </div>
+          </div>
+        </CardHeader>
+        <CardContent className="flex-grow flex flex-col items-center justify-center gap-2">
+          {isLoading ? (
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground whitespace-pre-wrap text-center">
+                {shortText}
+              </p>
+              <button
+                className="mt-2 px-3 py-1 rounded bg-zinc-800 text-white text-xs hover:bg-zinc-900 transition"
+                onClick={() => setModalOpen(true)}
+              >
+                Ler toda dica
+              </button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+      {modalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+          <div className="bg-white rounded-lg shadow-lg max-w-md w-full p-6 relative">
+            <h2 className="text-lg font-bold mb-2">Dica completa da IA</h2>
+            <p className="text-sm text-muted-foreground whitespace-pre-wrap mb-4">{insights}</p>
+            <button
+              className="px-3 py-1 rounded bg-zinc-800 text-white text-xs hover:bg-zinc-900 transition w-full"
+              onClick={() => setModalOpen(false)}
+            >
+              Fechar
+            </button>
+          </div>
         </div>
-      </CardHeader>
-      <CardContent className="flex-grow flex items-center justify-center">
-        {isLoading ? (
-            <Loader2 className="h-6 w-6 animate-spin text-primary" />
-        ) : (
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-            {insights}
-            </p>
-        )}
-      </CardContent>
-    </Card>
+      )}
+    </>
   );
 }

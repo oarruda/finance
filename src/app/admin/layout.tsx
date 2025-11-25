@@ -18,6 +18,12 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
     const { user, isUserLoading } = useUser();
+    const [isMounted, setIsMounted] = React.useState(false);
+
+    // Aguardar montagem do cliente para evitar hydration mismatch
+    React.useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     React.useEffect(() => {
         if (!isUserLoading && !user) {
@@ -25,12 +31,32 @@ export default function AdminLayout({
         }
     }, [user, isUserLoading]);
 
-    if (isUserLoading || !user) {
+    // Durante SSR e primeira renderização, sempre renderizar o layout completo
+    if (!isMounted || isUserLoading) {
         return (
-            <div className="flex min-h-screen w-full items-center justify-center">
-                <Loader2 className="h-12 w-12 animate-spin text-primary" />
-            </div>
-        )
+            <SidebarProvider>
+                <div className="md:flex min-h-screen w-full">
+                    <Sidebar>
+                        <SidebarNav />
+                    </Sidebar>
+                    <SidebarInset className="w-full">
+                        <div className="flex flex-col min-h-screen">
+                            <Header />
+                            <main className="flex-1 p-5 sm:p-6 lg:p-8">
+                                <div className="flex items-center justify-center min-h-[60vh]">
+                                    <Loader2 className="h-12 w-12 animate-spin text-primary" />
+                                </div>
+                            </main>
+                            <Footer />
+                        </div>
+                    </SidebarInset>
+                </div>
+            </SidebarProvider>
+        );
+    }
+
+    if (!user) {
+        return null;
     }
 
   return (

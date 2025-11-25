@@ -78,6 +78,11 @@ export default function SettingsPage() {
     timezone: '',
     defaultCurrency: 'BRL',
     defaultLanguage: 'PT-BR',
+    aiProvider: 'gemini',
+    aiApiKey: '',
+    wiseApiKey: '',
+    c6ApiKey: '',
+    exchangeRateApiKey: '',
   });
 
   React.useEffect(() => {
@@ -203,6 +208,11 @@ export default function SettingsPage() {
           timezone: formData.timezone,
           defaultCurrency: formData.defaultCurrency,
           defaultLanguage: formData.defaultLanguage,
+          aiProvider: formData.aiProvider,
+          aiApiKey: formData.aiApiKey,
+          wiseApiKey: formData.wiseApiKey,
+          c6ApiKey: formData.c6ApiKey,
+          exchangeRateApiKey: formData.exchangeRateApiKey,
         },
         photoURL || undefined
       );
@@ -723,6 +733,116 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               )}
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* AI API Configuration Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.aiConfig') || 'Configuração de IA'}</CardTitle>
+            <CardDescription>{t('settings.aiConfigDesc') || 'Configure a API da sua IA preferida'}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="aiProvider">{t('settings.aiProvider') || 'Provedor de IA'} *</Label>
+                <Select
+                  value={formData.aiProvider}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, aiProvider: value }))}
+                  disabled={!isEditing}
+                >
+                  <SelectTrigger id="aiProvider">
+                    <SelectValue placeholder={t('settings.selectAiProvider') || 'Selecione o provedor'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="gemini">Google Gemini</SelectItem>
+                    <SelectItem value="openai">OpenAI (GPT)</SelectItem>
+                    <SelectItem value="claude">Anthropic Claude</SelectItem>
+                    <SelectItem value="mistral">Mistral AI</SelectItem>
+                    <SelectItem value="cohere">Cohere</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="aiApiKey">{t('settings.aiApiKey') || 'Chave da API'} *</Label>
+                <Input
+                  id="aiApiKey"
+                  name="aiApiKey"
+                  type="password"
+                  value={formData.aiApiKey}
+                  onChange={handleInputChange}
+                  placeholder={t('settings.aiApiKeyPlaceholder') || 'Cole sua chave de API aqui'}
+                  disabled={!isEditing}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {formData.aiProvider === 'gemini' && 'Obtenha sua chave em: https://aistudio.google.com/app/apikey'}
+                  {formData.aiProvider === 'openai' && 'Obtenha sua chave em: https://platform.openai.com/api-keys'}
+                  {formData.aiProvider === 'claude' && 'Obtenha sua chave em: https://console.anthropic.com/'}
+                  {formData.aiProvider === 'mistral' && 'Obtenha sua chave em: https://console.mistral.ai/'}
+                  {formData.aiProvider === 'cohere' && 'Obtenha sua chave em: https://dashboard.cohere.com/api-keys'}
+                </p>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Bank APIs Configuration Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle>{t('settings.bankApiConfig') || 'APIs de Bancos'}</CardTitle>
+            <CardDescription>{t('settings.bankApiConfigDesc') || 'Configure as APIs dos bancos para conversão de moeda'}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="wiseApiKey">{t('settings.wiseApiKey') || 'Wise API Key'}</Label>
+                <Input
+                  id="wiseApiKey"
+                  name="wiseApiKey"
+                  type="password"
+                  value={formData.wiseApiKey || ''}
+                  onChange={handleInputChange}
+                  placeholder={t('settings.apiKeyPlaceholder') || 'Cole a chave da API'}
+                  disabled={!isEditing}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Obtenha sua chave em: https://wise.com/settings/api-tokens
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="c6ApiKey">{t('settings.c6ApiKey') || 'C6 Bank API Key'}</Label>
+                <Input
+                  id="c6ApiKey"
+                  name="c6ApiKey"
+                  type="password"
+                  value={formData.c6ApiKey || ''}
+                  onChange={handleInputChange}
+                  placeholder={t('settings.apiKeyPlaceholder') || 'Cole a chave da API'}
+                  disabled={!isEditing}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Contate o C6 Bank para obter acesso à API
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="exchangeRateApiKey">{t('settings.exchangeRateApiKey') || 'Exchange Rate API Key'}</Label>
+                <Input
+                  id="exchangeRateApiKey"
+                  name="exchangeRateApiKey"
+                  type="password"
+                  value={formData.exchangeRateApiKey || ''}
+                  onChange={handleInputChange}
+                  placeholder={t('settings.apiKeyPlaceholder') || 'Cole a chave da API'}
+                  disabled={!isEditing}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t('settings.exchangeRateApiKeyDesc') || 'Esta API é utilizada para visualização das cotações de moeda no cabeçalho. Obtenha sua chave em: https://www.exchangerate-api.com/'}
+                </p>
+              </div>
             </form>
           </CardContent>
         </Card>

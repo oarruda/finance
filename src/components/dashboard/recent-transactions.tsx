@@ -16,23 +16,24 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { formatCurrency, cn } from '@/lib/utils';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, startOfMonth, endOfMonth, format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import { Button } from '../ui/button';
-import { Download, Loader2, Pencil } from 'lucide-react';
+import { Download, Loader2, Pencil, Calendar as CalendarIcon } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
-import { collection, query, orderBy, limit, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, doc, updateDoc, deleteDoc, where } from 'firebase/firestore';
 import type { Transaction } from '@/lib/types';
 import { Skeleton } from '../ui/skeleton';
+import { MonthTransactionsModal } from './month-transactions-modal';
+import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
+import { Calendar } from '../ui/calendar';
 import * as React from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '../ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '../ui/alert-dialog';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Calendar } from '../ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover';
-import { Calendar as CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/lib/i18n';
 
@@ -43,13 +44,41 @@ export function RecentTransactions() {
     const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
     const [isSaving, setIsSaving] = React.useState(false);
+    const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
+    const [isDeleting, setIsDeleting] = React.useState(false);
+    
+    // Estado para o modal de transações do mês
+    const [selectedMonth, setSelectedMonth] = React.useState<Date | null>(null);
+    const [isMonthModalOpen, setIsMonthModalOpen] = React.useState(false);
 
     const transactionsQuery = useMemoFirebase(() => {
         if (!user) return null;
-        return query(collection(firestore, 'users', user.uid, 'transactions'), orderBy('date', 'desc'), limit(5));
+        return query(collection(firestore, 'users', user.uid, 'transactions'), orderBy('date', 'desc'), limit(3));
     }, [firestore, user]);
 
     const { data: transactions, isLoading } = useCollection<Transaction>(transactionsQuery);
+
+    // Query para buscar transações do mês selecionado
+    const monthTransactionsQuery = useMemoFirebase(() => {
+        if (!user || !selectedMonth) return null;
+        
+        const start = startOfMonth(selectedMonth);
+        const end = endOfMonth(selectedMonth);
+        
+        return query(
+            collection(firestore, 'users', user.uid, 'transactions'),
+            where('date', '>=', start.toISOString()),
+            where('date', '<=', end.toISOString()),
+            orderBy('date', 'desc')
+        );
+    }, [firestore, user, selectedMonth]);
+
+    const { data: monthTransactions, isLoading: isLoadingMonthTransactions } = useCollection<Transaction>(monthTransactionsQuery);
+
+    const handleViewMonth = (month: Date) => {
+        setSelectedMonth(month);
+        setIsMonthModalOpen(true);
+    };
 
     const handleEdit = (transaction: Transaction) => {
         setEditingTransaction(transaction);
@@ -90,7 +119,35 @@ export function RecentTransactions() {
         }
     };
 
+    const handleDelete = async () => {
+        if (!editingTransaction || !user?.uid || !firestore) return;
+
+        setIsDeleting(true);
+        try {
+            const transactionRef = doc(firestore, 'users', user.uid, 'transactions', editingTransaction.id);
+            await deleteDoc(transactionRef);
+
+            toast({
+                title: t('toast.success'),
+                description: t('transactions.deleteSuccess'),
+            });
+            setIsDeleteDialogOpen(false);
+            setIsEditDialogOpen(false);
+            setEditingTransaction(null);
+        } catch (error) {
+            console.error('Erro ao excluir transação:', error);
+            toast({
+                variant: 'destructive',
+                title: t('toast.error'),
+                description: t('transactions.deleteError'),
+            });
+        } finally {
+            setIsDeleting(false);
+        }
+    };
+
   return (
+    <>
     <Card>
       <CardHeader className='sm:flex-row sm:items-center sm:justify-between'>
         <div>
@@ -99,10 +156,73 @@ export function RecentTransactions() {
                 {t('transactions.recentList')}
             </CardDescription>
         </div>
-        <Button size="sm" variant="outline" onClick={() => alert('Exportando para .xlsx...')}>
-            <Download className="mr-2 h-4 w-4" />
-            {t('transactions.exportExcel')}
-        </Button>
+        <div className="flex gap-2">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button size="sm" variant="outline">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                Ver mês
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-3" align="end">
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Mês</label>
+                  <select
+                    value={selectedMonth ? selectedMonth.getMonth() : new Date().getMonth()}
+                    onChange={(e) => {
+                      const newDate = new Date(selectedMonth || new Date());
+                      newDate.setMonth(parseInt(e.target.value));
+                      setSelectedMonth(newDate);
+                    }}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    {Array.from({ length: 12 }, (_, i) => {
+                      const date = new Date(2000, i, 1);
+                      return (
+                        <option key={i} value={i}>
+                          {format(date, 'MMMM', { locale: ptBR })}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium mb-2 block">Ano</label>
+                  <select
+                    value={selectedMonth ? selectedMonth.getFullYear() : new Date().getFullYear()}
+                    onChange={(e) => {
+                      const newDate = new Date(selectedMonth || new Date());
+                      newDate.setFullYear(parseInt(e.target.value));
+                      setSelectedMonth(newDate);
+                    }}
+                    className="w-full p-2 border rounded-md"
+                  >
+                    {Array.from({ length: 10 }, (_, i) => {
+                      const year = new Date().getFullYear() - 5 + i;
+                      return (
+                        <option key={year} value={year}>
+                          {year}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+                <Button 
+                  onClick={() => selectedMonth && handleViewMonth(selectedMonth)} 
+                  className="w-full"
+                  size="sm"
+                >
+                  Ver transações
+                </Button>
+              </div>
+            </PopoverContent>
+          </Popover>
+          <Button size="sm" variant="outline" onClick={() => alert('Exportando para .xlsx...')}>
+              <Download className="mr-2 h-4 w-4" />
+              {t('transactions.exportExcel')}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent>
         <Table>
@@ -116,7 +236,7 @@ export function RecentTransactions() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && Array.from({ length: 5 }).map((_, i) => (
+            {isLoading && Array.from({ length: 3 }).map((_, i) => (
                 <TableRow key={i}>
                     <TableCell><Skeleton className='h-5 w-32' /></TableCell>
                     <TableCell><Skeleton className='h-5 w-20' /></TableCell>
@@ -293,17 +413,60 @@ export function RecentTransactions() {
             </div>
           )}
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSaving}>
-              {t('transactions.cancel')}
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button 
+              variant="destructive" 
+              onClick={() => setIsDeleteDialogOpen(true)} 
+              disabled={isSaving}
+              className="sm:mr-auto"
+            >
+              {t('transactions.delete')}
             </Button>
-            <Button onClick={handleSave} disabled={isSaving}>
-              {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {t('transactions.save')}
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isSaving}>
+                {t('transactions.cancel')}
+              </Button>
+              <Button onClick={handleSave} disabled={isSaving}>
+                {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                {t('transactions.save')}
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* AlertDialog de Confirmação de Exclusão */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('transactions.deleteConfirmTitle')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('transactions.deleteConfirmDesc')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>{t('transactions.cancel')}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              {t('transactions.delete')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
+
+    {/* Modal de Transações do Mês */}
+    <MonthTransactionsModal
+      open={isMonthModalOpen}
+      onOpenChange={setIsMonthModalOpen}
+      month={selectedMonth}
+      transactions={monthTransactions || []}
+      isLoading={isLoadingMonthTransactions}
+    />
+    </>
   );
 }
