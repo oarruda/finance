@@ -7,17 +7,25 @@ import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { AlertCircle, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import { useUser } from '@/firebase';
+import { useUser, useFirebase } from '@/firebase';
 import { useRouter } from 'next/navigation';
 import { loginWithEmailPassword } from '@/lib/auth';
+import { sendPasswordResetEmail } from 'firebase/auth';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export function LoginForm() {
   const { user, isUserLoading } = useUser();
+  const { auth } = useFirebase();
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | undefined>();
   const [isLoading, setIsLoading] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetError, setResetError] = useState<string | undefined>();
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -37,6 +45,33 @@ export function LoginForm() {
       setIsLoading(false);
     }
     // Se sucesso, o useEffect acima vai redirecionar
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError(undefined);
+    setResetSuccess(false);
+    setIsResetting(true);
+
+    try {
+      await sendPasswordResetEmail(auth, resetEmail);
+      setResetSuccess(true);
+      setResetEmail('');
+      setTimeout(() => {
+        setShowResetModal(false);
+        setResetSuccess(false);
+      }, 3000);
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') {
+        setResetError('Email não encontrado.');
+      } else if (error.code === 'auth/invalid-email') {
+        setResetError('Email inválido.');
+      } else {
+        setResetError('Erro ao enviar email de recuperação. Tente novamente.');
+      }
+    } finally {
+      setIsResetting(false);
+    }
   };
 
   if (isUserLoading || user) {
@@ -84,7 +119,7 @@ export function LoginForm() {
             />
           </div>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-col gap-2">
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? (
               <>
@@ -95,8 +130,82 @@ export function LoginForm() {
               'Entrar'
             )}
           </Button>
+          <Button
+            type="button"
+            variant="link"
+            className="text-sm text-muted-foreground"
+            onClick={() => setShowResetModal(true)}
+          >
+            Esqueci minha senha
+          </Button>
         </CardFooter>
       </Card>
+
+      {/* Modal de recuperação de senha */}
+      <Dialog open={showResetModal} onOpenChange={setShowResetModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Recuperar senha</DialogTitle>
+            <DialogDescription>
+              Digite seu email cadastrado para receber o link de recuperação de senha.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleResetPassword}>
+            <div className="space-y-4 py-4">
+              {resetError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{resetError}</AlertDescription>
+                </Alert>
+              )}
+              {resetSuccess && (
+                <Alert>
+                  <AlertDescription>
+                    Email de recuperação enviado com sucesso! Verifique sua caixa de entrada.
+                  </AlertDescription>
+                </Alert>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="reset-email">Email</Label>
+                <Input
+                  id="reset-email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  required
+                  value={resetEmail}
+                  onChange={(e) => setResetEmail(e.target.value)}
+                  disabled={isResetting || resetSuccess}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setShowResetModal(false);
+                  setResetError(undefined);
+                  setResetSuccess(false);
+                  setResetEmail('');
+                }}
+                disabled={isResetting}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={isResetting || resetSuccess}>
+                {isResetting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  'Enviar link'
+                )}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </form>
   );
 }
