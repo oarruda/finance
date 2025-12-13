@@ -1,14 +1,20 @@
 'use client';
 
-import { ArrowRightLeft, RefreshCw } from 'lucide-react';
+import { ArrowRightLeft, RefreshCw, LogOut, Settings } from 'lucide-react';
 import { getExchangeRates } from '@/lib/exchange-rates';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { SidebarTrigger } from '../ui/sidebar';
 import { useUser, useFirebase } from '@/firebase';
 import { Skeleton } from '../ui/skeleton';
 import * as React from 'react';
 import { useLanguage } from '@/lib/i18n';
+import { UserAvatar } from '@/components/ui/avatar-picker';
 
 export default function Header() {
   const { t } = useLanguage();
@@ -18,6 +24,7 @@ export default function Header() {
   const [showBrlUsd, setShowBrlUsd] = React.useState(false);
   const [currentTime, setCurrentTime] = React.useState(new Date());
   const [timezone, setTimezone] = React.useState('America/Sao_Paulo');
+  const [avatarId, setAvatarId] = React.useState<string>('user-1');
   const [rates, setRates] = React.useState({
     BRL_EUR: 0.17,
     BRL_USD: 0.19,
@@ -47,9 +54,9 @@ export default function Header() {
     return () => clearInterval(timer);
   }, []);
 
-  // Buscar timezone do usuário do Firestore
+  // Buscar timezone e avatarId do usuário do Firestore
   React.useEffect(() => {
-    const loadTimezone = async () => {
+    const loadUserData = async () => {
       if (user?.uid && firestore) {
         try {
           const { getDoc, doc } = await import('firebase/firestore');
@@ -61,15 +68,30 @@ export default function Header() {
             if (userData.timezone) {
               setTimezone(userData.timezone);
             }
+            if (userData.avatarId) {
+              setAvatarId(userData.avatarId);
+            }
           }
         } catch (error) {
-          console.error('Erro ao carregar timezone:', error);
+          console.error('Erro ao carregar dados do usuário:', error);
         }
       }
     };
     
-    loadTimezone();
+    loadUserData();
   }, [user?.uid, firestore]);
+
+  const handleLogout = async () => {
+    if (auth) {
+      try {
+        const { signOut } = await import('firebase/auth');
+        await signOut(auth);
+        window.location.href = '/';
+      } catch (error) {
+        console.error('Erro ao fazer logout:', error);
+      }
+    }
+  };
 
   const formatDateTime = () => {
     try {
@@ -198,14 +220,27 @@ export default function Header() {
         </div>
       </div>
       
-      {/* Avatar - Visual Identity Only */}
+      {/* Avatar with Dropdown Menu */}
       <div className="flex items-center">
-        <Avatar className="h-8 w-8">
-          <AvatarImage src={user?.photoURL ?? undefined} alt={user?.displayName ?? ''} data-ai-hint="person portrait" />
-          <AvatarFallback>
-            {user?.displayName?.charAt(0) ?? user?.email?.charAt(0)?.toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" className="h-8 w-8 rounded-full p-0">
+              <UserAvatar avatarId={avatarId} className="h-8 w-8" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem asChild className="cursor-pointer">
+              <a href="/profile" className="flex items-center">
+                <Settings className="mr-2 h-4 w-4" />
+                <span>Configurações Pessoais</span>
+              </a>
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleLogout} className="cursor-pointer text-red-600">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>{t('header.logout')}</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </header>
   );

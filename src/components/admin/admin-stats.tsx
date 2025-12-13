@@ -47,7 +47,7 @@ export function AdminStats() {
       bgColor: 'bg-primary/10',
     },
     {
-      title: 'Viewers',
+      title: 'Visualização',
       value: viewerUsers,
       description: 'Apenas visualização',
       icon: Eye,

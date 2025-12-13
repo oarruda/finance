@@ -8,8 +8,23 @@ export interface LoginResult {
 
 export async function loginWithEmailPassword(email: string, password: string): Promise<LoginResult> {
   try {
-    const { auth } = initializeFirebase();
-    await signInWithEmailAndPassword(auth, email, password);
+    const { auth, firestore } = initializeFirebase();
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    
+    // Verificar se o usuário está desativado no Firestore
+    const { doc, getDoc } = await import('firebase/firestore');
+    const userRef = doc(firestore, 'users', userCredential.user.uid);
+    const userSnap = await getDoc(userRef);
+    
+    if (userSnap.exists() && userSnap.data()?.disabled === true) {
+      // Fazer logout se o usuário estiver desativado
+      await auth.signOut();
+      return { 
+        success: false, 
+        message: 'Sua conta foi desativada. Entre em contato com o administrador do sistema.' 
+      };
+    }
+    
     return { success: true };
   } catch (error: any) {
     console.error('Login error:', error);

@@ -13,6 +13,7 @@ import { collection, addDoc } from 'firebase/firestore';
 import { useLanguage } from '@/lib/i18n';
 import Image from 'next/image';
 import { getExchangeRates } from '@/lib/exchange-rates';
+import { usePermissions } from '@/hooks/use-permissions';
 
 type Currency = 'BRL' | 'EUR' | 'USD';
 type Bank = 'Wise' | 'C6 Bank' | 'Itaú' | 'Millennium' | 'Novobanco';
@@ -37,6 +38,7 @@ export function WiseConversionCard() {
   const { toast } = useToast();
   const { firestore, user } = useFirebase();
   const { t } = useLanguage();
+  const { canEdit } = usePermissions();
 
   // Carregar taxas de câmbio ao montar o componente
   React.useEffect(() => {
@@ -187,6 +189,8 @@ export function WiseConversionCard() {
       case 'USD': return '$';
     }
   };
+
+  if (!canEdit) return null;
 
   return (
     <Card>

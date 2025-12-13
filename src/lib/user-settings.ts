@@ -1,6 +1,5 @@
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 
 export interface UserSettingsData {
   firstName: string;
@@ -24,38 +23,7 @@ export interface UserSettingsData {
   wiseApiKey?: string;
   c6ApiKey?: string;
   exchangeRateApiKey?: string;
-}
-
-export async function uploadProfilePhoto(
-  storage: any,
-  userId: string,
-  file: File
-): Promise<{ success: boolean; photoURL?: string; error?: string }> {
-  try {
-    // Validar tamanho do arquivo (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      return { success: false, error: 'O arquivo deve ter no máximo 2MB' };
-    }
-
-    // Validar tipo de arquivo
-    if (!file.type.startsWith('image/')) {
-      return { success: false, error: 'O arquivo deve ser uma imagem' };
-    }
-
-    // Criar referência no Storage
-    const storageRef = ref(storage, `users/${userId}/profile.jpg`);
-
-    // Fazer upload do arquivo
-    await uploadBytes(storageRef, file);
-
-    // Obter URL de download
-    const photoURL = await getDownloadURL(storageRef);
-
-    return { success: true, photoURL };
-  } catch (error: any) {
-    console.error('Error uploading profile photo:', error);
-    return { success: false, error: error?.message || 'Erro ao fazer upload da foto' };
-  }
+  avatarId?: string;
 }
 
 export async function saveUserSettings(
@@ -63,18 +31,13 @@ export async function saveUserSettings(
   auth: any,
   userId: string,
   currentUser: any,
-  data: UserSettingsData,
-  photoURL?: string
+  data: UserSettingsData
 ) {
   try {
-    // Atualizar displayName e photoURL no Firebase Auth
+    // Atualizar displayName no Firebase Auth
     const displayName = `${data.firstName} ${data.lastName}`.trim();
     if (currentUser) {
-      const profileUpdate: any = { displayName };
-      if (photoURL) {
-        profileUpdate.photoURL = photoURL;
-      }
-      await updateProfile(currentUser, profileUpdate);
+      await updateProfile(currentUser, { displayName });
     }
 
     // Salvar dados no Firestore
@@ -104,12 +67,9 @@ export async function saveUserSettings(
       wiseApiKey: data.wiseApiKey || null,
       c6ApiKey: data.c6ApiKey || null,
       exchangeRateApiKey: data.exchangeRateApiKey || null,
+      avatarId: data.avatarId || 'user-1',
       updatedAt: new Date().toISOString(),
     };
-
-    if (photoURL) {
-      userData.photoURL = photoURL;
-    }
 
     await setDoc(userRef, userData, { merge: true });
 
@@ -126,10 +86,13 @@ export async function getUserSettings(firestore: any, userId: string) {
     const docSnap = await getDoc(userRef);
 
     if (!docSnap.exists()) {
+      console.log('User document does not exist in Firestore:', userId);
       return { success: true, data: null };
     }
 
     const data = docSnap.data();
+    console.log('User data from Firestore:', data);
+    
     return {
       success: true,
       data: {
@@ -154,6 +117,7 @@ export async function getUserSettings(firestore: any, userId: string) {
         wiseApiKey: data?.wiseApiKey || '',
         c6ApiKey: data?.c6ApiKey || '',
         exchangeRateApiKey: data?.exchangeRateApiKey || '',
+        avatarId: data?.avatarId || 'user-1',
       },
     };
   } catch (error: any) {

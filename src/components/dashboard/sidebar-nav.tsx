@@ -28,6 +28,7 @@ import { useCollection, useMemoFirebase } from '@/firebase';
 import { Lightbulb, Loader2 } from 'lucide-react';
 import type { Transaction } from '@/types';
 import { collection, query, limit } from 'firebase/firestore';
+import { usePermissions } from '@/hooks/use-permissions';
 
 // Versículos de Provérbios - NTLH (Nova Tradução na Linguagem de Hoje)
 const proverbsNTLH = [
@@ -105,6 +106,7 @@ export function SidebarNav() {
   const { user } = useUser();
   const { t, language } = useLanguage();
   const { auth, firestore } = useFirebase();
+  const { isMaster } = usePermissions();
   
   // Selecionar provérbios baseados no idioma
   const proverbs = language === 'EN-US' ? proverbsNIV : proverbsNTLH;
@@ -121,9 +123,10 @@ export function SidebarNav() {
 
   const { data: transactions } = useCollection<Transaction>(transactionsQuery);
   
+  // Links do menu - Admin só aparece para MASTER
   const links = [
     { href: '/dashboard', label: t('header.dashboard'), icon: LayoutDashboard },
-    { href: '/admin', label: t('header.admin'), icon: Users },
+    ...(isMaster ? [{ href: '/admin', label: t('header.admin'), icon: Users }] : []),
   ];
   
   const handleLogout = () => {
@@ -349,7 +352,7 @@ export function SidebarNav() {
                 asChild
                 isActive={pathname === link.href}
                 tooltip={link.label}
-                className="justify-start"
+                className="justify-start transition-all duration-300 hover:scale-105 hover:translate-x-1 hover:bg-primary/10"
               >
                 <Link 
                   href={link.href}
@@ -359,8 +362,8 @@ export function SidebarNav() {
                     }
                   }}
                 >
-                  <link.icon className="shrink-0" />
-                  <span>{link.label}</span>
+                  <link.icon className="shrink-0 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+                  <span className="transition-all duration-300">{link.label}</span>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -368,48 +371,38 @@ export function SidebarNav() {
           
           <SidebarSeparator className="my-2" />
           
-          {/* Settings */}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              isActive={pathname === '/settings'}
-              tooltip={t('header.settings')}
-              className="justify-start"
-            >
-              <Link 
-                href="/settings"
-                onClick={() => {
-                  if (isMobile) {
-                    setOpenMobile(false);
-                  }
-                }}
+          {/* Settings - Only for MASTER */}
+          {isMaster && (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                asChild
+                isActive={pathname === '/system-settings'}
+                tooltip="Configurações de Sistema"
+                className="justify-start transition-all duration-300 hover:scale-105 hover:translate-x-1 hover:bg-primary/10"
               >
-                <Settings className="shrink-0" />
-                <span>{t('header.settings')}</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
+                <Link 
+                  href="/system-settings"
+                  onClick={() => {
+                    if (isMobile) {
+                      setOpenMobile(false);
+                    }
+                  }}
+                >
+                  <Settings className="shrink-0 transition-transform duration-300 group-hover:rotate-90 group-hover:scale-110" />
+                  <span className="transition-all duration-300">Configurações de Sistema</span>
+                </Link>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          )}
           
           {/* Support */}
           <SidebarMenuItem>
             <SidebarMenuButton
               tooltip={t('header.support')}
-              className="justify-start"
+              className="justify-start transition-all duration-300 hover:scale-105 hover:translate-x-1 hover:bg-primary/10"
             >
-              <HelpCircle className="shrink-0" />
-              <span>{t('header.support')}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-          
-          {/* Logout */}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              onClick={handleLogout}
-              tooltip={t('header.logout')}
-              className="justify-start"
-            >
-              <LogOut className="shrink-0" />
-              <span>{t('header.logout')}</span>
+              <HelpCircle className="shrink-0 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
+              <span className="transition-all duration-300">{t('header.support')}</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

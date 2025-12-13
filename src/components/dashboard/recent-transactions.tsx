@@ -36,11 +36,13 @@ import { Textarea } from '../ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/lib/i18n';
+import { usePermissions } from '@/hooks/use-permissions';
 
 export function RecentTransactions() {
     const { firestore, user } = useFirebase();
     const { toast } = useToast();
     const { t } = useLanguage();
+    const { canEdit } = usePermissions();
     const [editingTransaction, setEditingTransaction] = React.useState<Transaction | null>(null);
     const [isEditDialogOpen, setIsEditDialogOpen] = React.useState(false);
     const [isSaving, setIsSaving] = React.useState(false);
@@ -232,7 +234,7 @@ export function RecentTransactions() {
               <TableHead>{t('transactions.category')}</TableHead>
               <TableHead className="hidden sm:table-cell">{t('transactions.date')}</TableHead>
               <TableHead className="text-right">{t('transactions.amount')}</TableHead>
-              <TableHead className="w-[80px]"></TableHead>
+              {canEdit && <TableHead className="w-[80px]"></TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -242,7 +244,7 @@ export function RecentTransactions() {
                     <TableCell><Skeleton className='h-5 w-20' /></TableCell>
                     <TableCell className="hidden sm:table-cell"><Skeleton className='h-5 w-24' /></TableCell>
                     <TableCell className="text-right"><Skeleton className='h-5 w-16 float-right' /></TableCell>
-                    <TableCell><Skeleton className='h-8 w-8' /></TableCell>
+                    {canEdit && <TableCell><Skeleton className='h-8 w-8' /></TableCell>}
                 </TableRow>
             ))}
             {transactions && transactions.map(transaction => (
@@ -270,16 +272,18 @@ export function RecentTransactions() {
                   {transaction.type === 'income' ? '+' : '-'}
                   {formatCurrency(transaction.amount, transaction.currency || 'BRL')}
                 </TableCell>
-                <TableCell>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => handleEdit(transaction)}
-                    className="transition-all duration-200 hover:scale-110 hover:rotate-12"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </Button>
-                </TableCell>
+                {canEdit && (
+                  <TableCell>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(transaction)}
+                      className="transition-all duration-200 hover:scale-110 hover:rotate-12"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
             {!isLoading && transactions?.length === 0 && (

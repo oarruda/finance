@@ -3,26 +3,31 @@
  *
  * Core Philosophy:
  * The security model is built on three-tier Role-Based Access Control:
- * 1. MASTER: Full control - can create/edit/delete everything, manage all users
- * 2. ADMIN: Management access - can view all data, manage content, but cannot delete users or change master settings
+ * 1. MASTER: Full control - can create/edit/delete everything, manage all users, configure APIs and AI
+ * 2. ADMIN: Transaction management - can only view and manage transactions, cannot manage users or settings
  * 3. VIEWER: Read-only access - can only view dashboards and reports, no editing capabilities
  *
  * Data Structure:
  * - /users/{userId}: User profiles with role field (master/admin/viewer)
  * - /users/{userId}/transactions: User's financial transactions
  * - /users/{userId}/wiseTransactions: User's Wise transactions
+ * - /transactionHistory: Audit log for transaction changes
  * - /exchangeRates: Public exchange rate data
+ * - /settings: System settings (API keys, AI config) - MASTER only
  * - /roles_master: Collection identifying master users (highest privilege)
- * - /roles_admin: Collection identifying admin users (management privilege)
+ * - /roles_admin: Collection identifying admin users (transaction management only)
+ * - VIEWER role is implicit - any user without master or admin role
  *
  * Permission Matrix:
- * | Action              | Master | Admin | Viewer |
- * |---------------------|--------|-------|--------|
- * | View all data       | ✓      | ✓     | ✓      |
- * | Create/Edit content | ✓      | ✓     | ✗      |
- * | Delete content      | ✓      | ✓     | ✗      |
- * | Manage users        | ✓      | ✗     | ✗      |
- * | Change roles        | ✓      | ✗     | ✗      |
+ * | Action                    | Master | Admin | Viewer |
+ * |---------------------------|--------|-------|--------|
+ * | View all data             | ✓      | ✓     | ✓      |
+ * | Manage transactions       | ✓      | ✓     | ✗      |
+ * | Manage users              | ✓      | ✗     | ✗      |
+ * | Change roles              | ✓      | ✗     | ✗      |
+ * | Configure APIs/AI         | ✓      | ✗     | ✗      |
+ * | Insert demo data          | ✓      | ✗     | ✗      |
+ * | View audit logs           | ✓      | ✓     | ✗      |
  */
 rules_version = '2';
 service cloud.firestore {
@@ -88,15 +93,16 @@ service cloud.firestore {
      * @description User profiles with role-based access
      * - Everyone can view all users (for collaboration features)
      * - Users can create their own profile
-     * - Only Master can update/delete any user
+     * - ONLY Masters can create profiles for other users
+     * - ONLY Master can update/delete any user (ADMIN cannot)
      * - Users can update their own profile (except role field)
      */
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isOwner(userId);
-      allow update: if isMaster() || (isOwner(userId) && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == resource.data.role)); // Can't change own role
-      allow delete: if isMaster();
+      allow create: if isOwner(userId) || isMaster(); // Only MASTER can create other users
+      allow update: if isMaster() || (isOwner(userId) && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == resource.data.role)); // ADMIN cannot update users
+      allow delete: if isMaster(); // Only MASTER can delete users
     }
 
     /**
@@ -145,14 +151,41 @@ service cloud.firestore {
     // --------------------------------------------------------------------
 
     /**
-     * @description Exchange rates - public read, admin+ write
+     * @description Exchange rates - public read, MASTER only write
      */
     match /exchangeRates/{exchangeRateId} {
       allow get: if true;
       allow list: if true;
-      allow create: if isAdminOrAbove();
-      allow update: if isAdminOrAbove();
-      allow delete: if isAdminOrAbove();
+      allow create: if isMaster();
+      allow update: if isMaster();
+      allow delete: if isMaster();
+    }
+
+    /**
+     * @description System settings (API keys, AI configuration)
+     * - ONLY Masters can read and write
+     * - ADMIN and VIEWER have no access
+     */
+    match /settings/{settingId} {
+      allow get: if isMaster();
+      allow list: if isMaster();
+      allow create: if isMaster();
+      allow update: if isMaster();
+      allow delete: if isMaster();
+    }
+
+    /**
+     * @description Transaction history/audit log
+     * - ADMIN and MASTER can read audit logs
+     * - System automatically creates entries (handled by Cloud Functions or client)
+     * - Cannot be modified or deleted once created
+     */
+    match /transactionHistory/{historyId} {
+      allow get: if isAdminOrAbove();
+      allow list: if isAdminOrAbove();
+      allow create: if isAdminOrAbove(); // Created when transactions are modified
+      allow update: if false; // Audit logs are immutable
+      allow delete: if isMaster(); // Only MASTER can delete audit logs if needed
     }
 
     /**

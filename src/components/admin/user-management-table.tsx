@@ -25,12 +25,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../ui/select';
-import { updateUserRoleAction } from '@/lib/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '../ui/badge';
-import { Loader2, Trash2, Eye } from 'lucide-react';
+import { Loader2, Trash2, Eye, Mail, Ban, CheckCircle } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
-import { collection, query, doc, deleteDoc } from 'firebase/firestore';
+import { collection, query, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Skeleton } from '../ui/skeleton';
 import { Button } from '../ui/button';
 import {
@@ -54,11 +53,13 @@ import {
 export function UserManagementTable() {
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
+  const [resendingEmailId, setResendingEmailId] = React.useState<string | null>(null);
+  const [togglingStatusId, setTogglingStatusId] = React.useState<string | null>(null);
   const [viewingUser, setViewingUser] = React.useState<User | null>(null);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const { toast } = useToast();
-  const { firestore, user: currentUser } = useFirebase();
+  const { firestore, user: currentUser, auth } = useFirebase();
 
   const usersQuery = useMemoFirebase(() => {
     return query(collection(firestore, 'users'));
@@ -66,30 +67,52 @@ export function UserManagementTable() {
 
   const { data: users, isLoading, setData } = useCollection<User>(usersQuery);
 
+  // Debug: Log dos usuários carregados
+  React.useEffect(() => {
+    console.log('=== USER MANAGEMENT TABLE DEBUG ===');
+    console.log('Current user:', currentUser?.uid, currentUser?.email);
+    console.log('Firestore instance:', firestore ? 'Available' : 'Not available');
+    console.log('Users query:', usersQuery ? 'Created' : 'Not created');
+    console.log('Is loading:', isLoading);
+    console.log('Users data:', users);
+    console.log('Users count:', users?.length || 0);
+    console.log('===================================');
+  }, [users, isLoading, currentUser, firestore, usersQuery]);
+
 
   const handleRoleChange = async (userId: string, newRole: 'master' | 'admin' | 'viewer') => {
     setUpdatingId(userId);
-    const result = await updateUserRoleAction(userId, newRole);
-    if (result.success) {
+    try {
+      // Atualizar o documento do usuário no Firestore
+      const userRef = doc(firestore, 'users', userId);
+      await updateDoc(userRef, {
+        role: newRole,
+        updatedAt: new Date().toISOString(),
+      });
+
+      // Atualizar lista local
       if (setData && users) {
         setData(
-            users.map(user =>
+          users.map(user =>
             user.id === userId ? { ...user, role: newRole } : user
           )
         );
       }
+
       toast({
         title: 'Sucesso',
         description: 'Função do usuário atualizada.',
       });
-    } else {
-        toast({
-            variant: 'destructive',
-            title: 'Erro',
-            description: result.message ?? 'Falha ao atualizar função do usuário.',
-        });
+    } catch (error: any) {
+      console.error('Erro ao atualizar função do usuário:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: error?.message || 'Falha ao atualizar função do usuário. Você precisa ter permissões de Master.',
+      });
+    } finally {
+      setUpdatingId(null);
     }
-    setUpdatingId(null);
   };
 
   const handleDeleteUser = async () => {
@@ -140,6 +163,112 @@ export function UserManagementTable() {
     setIsDeleteDialogOpen(true);
   };
 
+  const handleResendEmail = async (user: User) => {
+    setResendingEmailId(user.id);
+    try {
+      // Obter token do usuário atual
+      const token = await auth?.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Não foi possível obter token de autenticação');
+      }
+
+      const response = await fetch('/api/admin/resend-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: user.id,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao reenviar email');
+      }
+
+      toast({
+        title: 'Email enviado!',
+        description: `Credenciais reenviadas para ${user.email} com uma nova senha temporária.`,
+      });
+    } catch (error: any) {
+      console.error('Erro ao reenviar email:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao reenviar email',
+        description: error.message,
+      });
+    } finally {
+      setResendingEmailId(null);
+    }
+  };
+
+  const handleToggleUserStatus = async (user: User) => {
+    // Não permitir desativar o próprio usuário
+    if (user.id === currentUser?.uid) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Você não pode desativar sua própria conta.',
+      });
+      return;
+    }
+
+    const newDisabledStatus = !user.disabled;
+    setTogglingStatusId(user.id);
+    
+    try {
+      // Obter token do usuário atual
+      const token = await auth?.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Não foi possível obter token de autenticação');
+      }
+
+      const response = await fetch('/api/admin/toggle-user-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: user.id,
+          disabled: newDisabledStatus,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao atualizar status do usuário');
+      }
+
+      // Atualizar lista local
+      if (setData && users) {
+        setData(
+          users.map(u =>
+            u.id === user.id ? { ...u, disabled: newDisabledStatus } : u
+          )
+        );
+      }
+
+      toast({
+        title: 'Sucesso',
+        description: `Usuário ${newDisabledStatus ? 'desativado' : 'ativado'} com sucesso.`,
+      });
+    } catch (error: any) {
+      console.error('Erro ao atualizar status:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: error.message,
+      });
+    } finally {
+      setTogglingStatusId(null);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -175,17 +304,33 @@ export function UserManagementTable() {
                     </TableCell>
                 </TableRow>
             ))}
+            {!isLoading && (!users || users.length === 0) && (
+              <TableRow>
+                <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                  Nenhum usuário encontrado. Adicione o primeiro usuário usando o botão "Novo Usuário".
+                </TableCell>
+              </TableRow>
+            )}
             {users?.map(user => (
               <TableRow key={user.id}>
                 <TableCell>
                   <div className="flex items-center gap-3">
-                    <Avatar>
+                    <Avatar className={user.disabled ? 'opacity-50' : ''}>
                       <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person portrait" />
                       <AvatarFallback>{user.name ? user.name.charAt(0) : user.email.charAt(0).toUpperCase()}</AvatarFallback>
                     </Avatar>
                     <div>
-                      <p className="font-medium">{user.name || user.email}</p>
-                      <p className="text-sm text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <p className={`font-medium ${user.disabled ? 'opacity-50 line-through' : ''}`}>
+                          {user.name || user.email}
+                        </p>
+                        {user.disabled && (
+                          <Badge variant="destructive" className="text-xs">
+                            Desativado
+                          </Badge>
+                        )}
+                      </div>
+                      <p className={`text-sm text-muted-foreground ${user.disabled ? 'opacity-50' : ''}`}>
                         {user.email}
                       </p>
                     </div>
@@ -214,7 +359,7 @@ export function UserManagementTable() {
                                 <Badge className="bg-primary/80 hover:bg-primary/80">Admin</Badge>
                             </SelectItem>
                             <SelectItem value="viewer">
-                                <Badge variant="secondary">Viewer</Badge>
+                                <Badge variant="secondary">Visualização</Badge>
                             </SelectItem>
                             </SelectContent>
                         </Select>
@@ -222,7 +367,7 @@ export function UserManagementTable() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -230,6 +375,34 @@ export function UserManagementTable() {
                       title="Ver detalhes"
                     >
                       <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleResendEmail(user)}
+                      disabled={resendingEmailId === user.id}
+                      title="Reenviar credenciais por email"
+                    >
+                      {resendingEmailId === user.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Mail className="h-4 w-4 text-blue-600" />
+                      )}
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleToggleUserStatus(user)}
+                      disabled={togglingStatusId === user.id || user.id === currentUser?.uid}
+                      title={user.id === currentUser?.uid ? "Não pode desativar sua própria conta" : user.disabled ? "Ativar usuário" : "Desativar usuário"}
+                    >
+                      {togglingStatusId === user.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : user.disabled ? (
+                        <CheckCircle className="h-4 w-4 text-green-600" />
+                      ) : (
+                        <Ban className="h-4 w-4 text-orange-600" />
+                      )}
                     </Button>
                     <Button
                       variant="ghost"
@@ -298,7 +471,7 @@ export function UserManagementTable() {
                   <Badge className="mt-1">
                     {viewingUser.role === 'master' && 'Master'}
                     {viewingUser.role === 'admin' && 'Admin'}
-                    {viewingUser.role === 'viewer' && 'Viewer'}
+                    {viewingUser.role === 'viewer' && 'Visualização'}
                   </Badge>
                 </div>
               </div>

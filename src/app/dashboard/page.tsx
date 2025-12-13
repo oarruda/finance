@@ -12,9 +12,11 @@ import { WiseConversionCard } from '@/components/dashboard/conversao-card';
 import { ConversionHistoryChart } from '@/components/dashboard/conversion-history-chart';
 import { ConversionStats } from '@/components/dashboard/conversion-stats';
 import { useLanguage } from '@/lib/i18n';
+import { usePermissions } from '@/hooks/use-permissions';
 
 export default function DashboardPage() {
   const { t } = useLanguage();
+  const { isMaster, canEdit } = usePermissions();
   
   const [demoOpen, setDemoOpen] = useState(false);
   const { DemoModal } = require('@/components/dashboard/demo-modal');
@@ -30,16 +32,20 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            className="bg-zinc-800 text-white px-4 py-2 rounded font-semibold shadow hover:bg-zinc-900 transition"
-            onClick={() => setDemoOpen(true)}
-          >
-            Demonstração
-          </button>
-          <DemoModal open={demoOpen} onOpenChange={setDemoOpen} />
-          <div className="w-px h-8 bg-border" />
-          <AddTransactionSheet />
-          <DeleteMonthDialog />
+          {isMaster && (
+            <>
+              <button
+                className="bg-zinc-800 text-white px-4 py-2 rounded font-semibold shadow hover:bg-zinc-900 transition"
+                onClick={() => setDemoOpen(true)}
+              >
+                Demonstração
+              </button>
+              <DemoModal open={demoOpen} onOpenChange={setDemoOpen} />
+              <div className="w-px h-8 bg-border" />
+            </>
+          )}
+          {canEdit && <AddTransactionSheet />}
+          {canEdit && <DeleteMonthDialog />}
         </div>
       </div>
 
