@@ -190,14 +190,14 @@ export function UserManagementTable() {
       }
 
       toast({
-        title: 'Email enviado!',
-        description: `Credenciais reenviadas para ${user.email} com uma nova senha temporária.`,
+        title: 'Email de reset enviado!',
+        description: `Um link para redefinir a senha foi enviado para ${user.email}. O usuário poderá criar uma nova senha.`,
       });
     } catch (error: any) {
       console.error('Erro ao reenviar email:', error);
       toast({
         variant: 'destructive',
-        title: 'Erro ao reenviar email',
+        title: 'Erro ao enviar email',
         description: error.message,
       });
     } finally {
@@ -220,29 +220,12 @@ export function UserManagementTable() {
     setTogglingStatusId(user.id);
     
     try {
-      // Obter token do usuário atual
-      const token = await auth?.currentUser?.getIdToken();
-      if (!token) {
-        throw new Error('Não foi possível obter token de autenticação');
-      }
-
-      const response = await fetch('/api/admin/toggle-user-status', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          userId: user.id,
-          disabled: newDisabledStatus,
-        }),
+      // Atualizar diretamente no Firestore usando o SDK do cliente
+      const userRef = doc(firestore, 'users', user.id);
+      await updateDoc(userRef, {
+        disabled: newDisabledStatus,
+        updatedAt: new Date().toISOString(),
       });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(result.error || 'Erro ao atualizar status do usuário');
-      }
 
       // Atualizar lista local
       if (setData && users) {
@@ -261,8 +244,8 @@ export function UserManagementTable() {
       console.error('Erro ao atualizar status:', error);
       toast({
         variant: 'destructive',
-        title: 'Erro',
-        description: error.message,
+        title: 'Erro ao atualizar status',
+        description: error.message || 'Verifique se você tem permissões de MASTER.',
       });
     } finally {
       setTogglingStatusId(null);

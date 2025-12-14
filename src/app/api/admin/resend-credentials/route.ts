@@ -59,64 +59,43 @@ export async function POST(request: NextRequest) {
     const name = userData?.name?.stringValue || userData?.email?.stringValue || '';
     const email = userData?.email?.stringValue || '';
 
-    // Gerar uma nova senha temporária
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
-    let newPassword = '';
-    for (let i = 0; i < 12; i++) {
-      newPassword += chars.charAt(Math.floor(Math.random() * chars.length));
+    if (!email) {
+      return NextResponse.json({ 
+        error: 'Email do usuário não encontrado' 
+      }, { status: 404 });
     }
 
-    // Atualizar a senha do usuário no Firebase Auth
+    // IMPORTANTE: A REST API do Firebase não permite resetar senha diretamente
+    // Vamos enviar um email de reset de senha usando a API do Firebase
+    console.log('Enviando email de reset de senha para:', email);
+
     const resetPasswordResponse = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${firebaseConfig.apiKey}`,
+      `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${firebaseConfig.apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          localId: userId,
-          password: newPassword,
-          returnSecureToken: false,
+          requestType: 'PASSWORD_RESET',
+          email: email,
         }),
       }
     );
 
     if (!resetPasswordResponse.ok) {
       const errorData = await resetPasswordResponse.json();
-      console.error('Erro ao atualizar senha:', errorData);
+      console.error('Erro ao enviar email de reset:', errorData);
       return NextResponse.json({ 
-        error: 'Erro ao atualizar senha do usuário' 
+        error: 'Erro ao enviar email de reset de senha: ' + (errorData.error?.message || 'Erro desconhecido')
       }, { status: 500 });
     }
 
-    console.log('Senha atualizada com sucesso para usuário:', userId);
-
-    // Enviar email com as novas credenciais
-    const emailResponse = await fetch(`${request.nextUrl.origin}/api/admin/send-welcome-email`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        name,
-        email,
-        password: newPassword,
-      }),
-    });
-
-    if (!emailResponse.ok) {
-      const emailError = await emailResponse.json();
-      console.error('Erro ao enviar email:', emailError);
-      return NextResponse.json({ 
-        error: 'Senha atualizada mas falha ao enviar email: ' + (emailError.error || 'Erro desconhecido')
-      }, { status: 500 });
-    }
-
-    console.log('Email reenviado com sucesso para:', email);
+    const resetData = await resetPasswordResponse.json();
+    console.log('Email de reset enviado com sucesso para:', email);
 
     return NextResponse.json({
       success: true,
-      message: 'Email reenviado com sucesso com nova senha temporária',
+      message: 'Email de reset de senha enviado com sucesso',
+      email: email,
     });
   } catch (error: any) {
     console.error('Erro ao reenviar email:', error);

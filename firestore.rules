@@ -95,14 +95,17 @@ service cloud.firestore {
      * - Users can create their own profile
      * - ONLY Masters can create profiles for other users
      * - ONLY Master can update/delete any user (ADMIN cannot)
-     * - Users can update their own profile (except role field)
+     * - Users can update their own profile (except role and disabled fields)
      */
     match /users/{userId} {
       allow get: if isSignedIn();
       allow list: if isSignedIn();
-      allow create: if isOwner(userId) || isMaster(); // Only MASTER can create other users
-      allow update: if isMaster() || (isOwner(userId) && (!request.resource.data.keys().hasAny(['role']) || request.resource.data.role == resource.data.role)); // ADMIN cannot update users
-      allow delete: if isMaster(); // Only MASTER can delete users
+      allow create: if isOwner(userId) || isMaster();
+      // MASTER can update anything. Users can only update their own profile but NOT role or disabled fields
+      allow update: if isMaster() || 
+                       (isOwner(userId) && 
+                        !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'disabled']));
+      allow delete: if isMaster();
     }
 
     /**
