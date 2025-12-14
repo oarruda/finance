@@ -93,22 +93,30 @@ export default function SystemSettingsPage() {
       // Get current user data first
       const currentData = await getUserSettings(firestore, user.uid);
       
+      const dataToSave = {
+        firstName: currentData.data?.firstName || '',
+        lastName: currentData.data?.lastName || '',
+        email: currentData.data?.email || user.email || '',
+        timezone: currentData.data?.timezone || 'America/Sao_Paulo',
+        ...(currentData.success && currentData.data ? currentData.data : {}),
+        ...formData,
+      };
+
+      console.log('=== SALVANDO CONFIGURAÇÕES ===');
+      console.log('resendApiKey:', dataToSave.resendApiKey ? `${dataToSave.resendApiKey.substring(0, 8)}...` : 'NÃO DEFINIDA');
+      console.log('resendFromEmail:', dataToSave.resendFromEmail);
+      console.log('appUrl:', dataToSave.appUrl);
+      
       const result = await saveUserSettings(
         firestore, 
         auth, 
         user.uid, 
         user, 
-        {
-          firstName: currentData.data?.firstName || '',
-          lastName: currentData.data?.lastName || '',
-          email: currentData.data?.email || user.email || '',
-          timezone: currentData.data?.timezone || 'America/Sao_Paulo',
-          ...(currentData.success && currentData.data ? currentData.data : {}),
-          ...formData,
-        }
+        dataToSave
       );
 
       if (result.success) {
+        console.log('✅ Configurações salvas com sucesso');
         toast({
           title: t('toast.saved'),
           description: 'Configurações de sistema atualizadas com sucesso',

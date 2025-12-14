@@ -50,6 +50,10 @@ export async function POST(request: NextRequest) {
     let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
     let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
+    console.log('=== BUSCANDO CONFIGURAÇÕES DO RESEND ===');
+    console.log('User ID:', currentUserId);
+    console.log('Firestore URL:', firestoreUrl);
+
     try {
       const firestoreResponse = await fetch(firestoreUrl, {
         headers: {
@@ -57,24 +61,41 @@ export async function POST(request: NextRequest) {
         },
       });
 
+      console.log('Firestore Response Status:', firestoreResponse.status);
+
       if (firestoreResponse.ok) {
         const userData = await firestoreResponse.json();
         const fields = userData.fields || {};
         
+        console.log('Campos encontrados:', Object.keys(fields));
+        console.log('resendApiKey presente?', !!fields.resendApiKey);
+        console.log('resendFromEmail presente?', !!fields.resendFromEmail);
+        console.log('appUrl presente?', !!fields.appUrl);
+        
         if (fields.resendApiKey?.stringValue) {
           resendApiKey = fields.resendApiKey.stringValue;
+          console.log('✅ resendApiKey carregada do Firestore');
         }
         if (fields.resendFromEmail?.stringValue) {
           resendFromEmail = fields.resendFromEmail.stringValue;
+          console.log('✅ resendFromEmail carregada do Firestore');
         }
         if (fields.appUrl?.stringValue) {
           appUrl = fields.appUrl.stringValue;
+          console.log('✅ appUrl carregada do Firestore');
         }
+      } else {
+        const errorText = await firestoreResponse.text();
+        console.error('Erro ao buscar do Firestore:', errorText);
       }
     } catch (firestoreError) {
-      console.error('Erro ao buscar configurações do Firestore, usando variáveis de ambiente:', firestoreError);
-      // Continuar com valores padrão
+      console.error('Erro ao buscar configurações do Firestore:', firestoreError);
     }
+
+    console.log('Configurações finais:');
+    console.log('- resendApiKey:', resendApiKey ? `${resendApiKey.substring(0, 8)}...` : 'NÃO CONFIGURADA');
+    console.log('- resendFromEmail:', resendFromEmail);
+    console.log('- appUrl:', appUrl);
 
     // Verificar se a API key do Resend está configurada
     if (!resendApiKey) {
