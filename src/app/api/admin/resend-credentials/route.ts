@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { firebaseConfig } from '@/firebase/config';
 
+export const dynamic = 'force-static';
+
 export async function POST(request: NextRequest) {
   try {
     // Obter token do header para verificar autenticação

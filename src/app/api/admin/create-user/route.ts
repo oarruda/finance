@@ -14,6 +14,8 @@ function getFirebaseApp() {
   return getApps()[0];
 }
 
+export const dynamic = 'force-static';
+
 export async function POST(request: NextRequest) {
   console.log('=== CREATE USER API CALLED ===');
   try {
