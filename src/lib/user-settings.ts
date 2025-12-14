@@ -23,6 +23,9 @@ export interface UserSettingsData {
   wiseApiKey?: string;
   c6ApiKey?: string;
   exchangeRateApiKey?: string;
+  resendApiKey?: string;
+  resendFromEmail?: string;
+  appUrl?: string;
   avatarId?: string;
 }
 
@@ -67,6 +70,9 @@ export async function saveUserSettings(
       wiseApiKey: data.wiseApiKey || null,
       c6ApiKey: data.c6ApiKey || null,
       exchangeRateApiKey: data.exchangeRateApiKey || null,
+      resendApiKey: data.resendApiKey || null,
+      resendFromEmail: data.resendFromEmail || null,
+      appUrl: data.appUrl || null,
       avatarId: data.avatarId || 'user-1',
       updatedAt: new Date().toISOString(),
     };
@@ -117,6 +123,9 @@ export async function getUserSettings(firestore: any, userId: string) {
         wiseApiKey: data?.wiseApiKey || '',
         c6ApiKey: data?.c6ApiKey || '',
         exchangeRateApiKey: data?.exchangeRateApiKey || '',
+        resendApiKey: data?.resendApiKey || '',
+        resendFromEmail: data?.resendFromEmail || '',
+        appUrl: data?.appUrl || '',
         avatarId: data?.avatarId || 'user-1',
       },
     };

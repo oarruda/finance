@@ -141,7 +141,7 @@ export default function SystemSettingsPage() {
   };
 
   const handleSendTestEmail = async () => {
-    if (!user?.email || !auth) {
+    if (!user?.email || !auth || !firestore) {
       toast({
         variant: 'destructive',
         title: 'Erro',
@@ -162,32 +162,52 @@ export default function SystemSettingsPage() {
     setIsSendingTestEmail(true);
 
     try {
-      // Primeiro salvar as configurações se estiver editando
-      if (isEditing) {
-        const currentData = await getUserSettings(firestore!, user.uid);
-        await saveUserSettings(
-          firestore!,
-          auth,
-          user.uid,
-          user,
-          {
-            firstName: currentData.data?.firstName || '',
-            lastName: currentData.data?.lastName || '',
-            email: currentData.data?.email || user.email || '',
-            timezone: currentData.data?.timezone || 'America/Sao_Paulo',
-            ...(currentData.success && currentData.data ? currentData.data : {}),
-            ...formData,
-          }
-        );
+      // SEMPRE salvar as configurações antes de testar
+      console.log('=== SALVANDO CONFIGURAÇÕES ANTES DO TESTE ===');
+      const currentData = await getUserSettings(firestore, user.uid);
+      
+      const dataToSave = {
+        firstName: currentData.data?.firstName || '',
+        lastName: currentData.data?.lastName || '',
+        email: currentData.data?.email || user.email || '',
+        timezone: currentData.data?.timezone || 'America/Sao_Paulo',
+        ...(currentData.success && currentData.data ? currentData.data : {}),
+        ...formData,
+      };
+
+      console.log('Dados a salvar:', {
+        resendApiKey: dataToSave.resendApiKey ? `${dataToSave.resendApiKey.substring(0, 8)}...` : 'NÃO DEFINIDA',
+        resendFromEmail: dataToSave.resendFromEmail,
+        appUrl: dataToSave.appUrl,
+      });
+
+      const saveResult = await saveUserSettings(
+        firestore,
+        auth,
+        user.uid,
+        user,
+        dataToSave
+      );
+
+      if (!saveResult.success) {
+        throw new Error('Falha ao salvar configurações: ' + saveResult.error);
       }
 
+      console.log('✅ Configurações salvas com sucesso, aguardando 1 segundo...');
+      
+      // Aguardar um pouco para garantir que o Firestore processou a gravação
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
       // Obter token
-      const token = await auth.currentUser?.getIdToken();
+      console.log('Obtendo token de autenticação...');
+      const token = await auth.currentUser?.getIdToken(true); // Forçar refresh do token
       if (!token) {
         throw new Error('Não foi possível obter token de autenticação');
       }
+      console.log('Token obtido com sucesso');
 
       // Enviar email de teste
+      console.log('Enviando requisição para API de email...');
       const response = await fetch('/api/admin/send-welcome-email', {
         method: 'POST',
         headers: {
@@ -201,7 +221,9 @@ export default function SystemSettingsPage() {
         }),
       });
 
+      console.log('Response status:', response.status);
       const result = await response.json();
+      console.log('Response data:', result);
 
       if (!response.ok) {
         throw new Error(result.error || 'Erro ao enviar email de teste');
@@ -211,8 +233,10 @@ export default function SystemSettingsPage() {
         title: 'Email enviado!',
         description: `Email de teste enviado com sucesso para ${user.email}`,
       });
+      
+      console.log('✅ Email de teste enviado com sucesso!');
     } catch (error: any) {
-      console.error('Error sending test email:', error);
+      console.error('❌ Error sending test email:', error);
       toast({
         variant: 'destructive',
         title: 'Erro ao enviar email',
