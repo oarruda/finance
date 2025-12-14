@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-export const dynamic = 'force-static';
-
 /**
  * API para configurar o primeiro usuário MASTER
  * NOTA: Esta API foi simplificada para usar client-side operations

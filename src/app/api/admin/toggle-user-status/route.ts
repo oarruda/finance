@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { firebaseConfig } from '@/firebase/config';
 
-export const dynamic = 'force-static';
-
 export async function POST(request: NextRequest) {
   try {
     console.log('=== TOGGLE USER STATUS API START ===');

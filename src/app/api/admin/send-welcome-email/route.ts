@@ -7,8 +7,6 @@ import { firebaseConfig } from '@/firebase/config';
 // Você precisa adicionar RESEND_API_KEY no arquivo .env.local
 const resend = new Resend(process.env.RESEND_API_KEY || 'dummy_key_for_build');
 
-export const dynamic = 'force-static';
-
 export async function POST(request: NextRequest) {
   try {
     // Obter token do header para verificar autenticação
