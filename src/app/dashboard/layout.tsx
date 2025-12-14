@@ -12,6 +12,7 @@ import { useUser } from '@/firebase';
 import { redirect } from 'next/navigation';
 import * as React from 'react';
 import { Loader2 } from 'lucide-react';
+import { useUserPresence } from '@/hooks/use-user-presence';
 
 export default function DashboardLayout({
   children,
@@ -20,6 +21,9 @@ export default function DashboardLayout({
 }) {
     const { user, isUserLoading } = useUser();
     const [isMounted, setIsMounted] = React.useState(false);
+    
+    // Atualizar presença do usuário
+    useUserPresence();
 
     // Aguardar montagem do cliente para evitar hydration mismatch
     React.useEffect(() => {
