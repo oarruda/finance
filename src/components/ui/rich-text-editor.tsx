@@ -111,6 +111,14 @@ export function RichTextEditor({
     { label: 'Link', value: '{link}' },
   ];
 
+  // Preview HTML com substituição de variáveis de exemplo
+  const previewHTML = value
+    .replace(/{nome}/g, '<strong>João Silva</strong>')
+    .replace(/{email}/g, '<strong>joao.silva@exemplo.com</strong>')
+    .replace(/{senha}/g, '<strong style="color: #667eea; background: #f8f9fa; padding: 4px 8px; border-radius: 4px; font-family: monospace;">Temp@2024Pass</strong>')
+    .replace(/{link}/g, '#')
+    .replace(/\n/g, '<br>');
+
   return (
     <div className={cn('space-y-2', className)}>
       <div className="flex flex-wrap gap-1 p-2 border rounded-t-md bg-muted/50">
@@ -148,17 +156,32 @@ export function RichTextEditor({
           ))}
         </div>
       </div>
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        disabled={disabled}
-        placeholder={placeholder}
-        rows={rows}
-        className={cn(
-          'flex min-h-[80px] w-full rounded-b-md border border-t-0 border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono',
-        )}
-      />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Código</label>
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            disabled={disabled}
+            placeholder={placeholder}
+            rows={rows}
+            className={cn(
+              'flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 font-mono',
+            )}
+          />
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Preview</label>
+          <div 
+            className={cn(
+              'min-h-[80px] w-full rounded-md border border-input bg-muted/30 px-3 py-2 text-sm overflow-auto',
+            )}
+            style={{ height: `${rows * 24}px` }}
+            dangerouslySetInnerHTML={{ __html: previewHTML }}
+          />
+        </div>
+      </div>
     </div>
   );
 }
