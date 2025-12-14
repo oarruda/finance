@@ -152,11 +152,11 @@ export async function POST(request: NextRequest) {
       console.log('Usando template padrão (erro ao carregar personalizado):', err);
     }
 
-    // Substituir variáveis no bodyText
+    // Destacar senha no texto
     const emailBody = template.bodyText
-      .replace(/{nome}/g, name)
-      .replace(/{email}/g, email)
-      .replace(/{senha}/g, password)
+      .replace(/{nome}/g, `<strong>${name}</strong>`)
+      .replace(/{email}/g, `<strong>${email}</strong>`)
+      .replace(/{senha}/g, `<strong style="color: ${template.primaryColor}; font-size: 18px; background: #f8f9fa; padding: 8px 12px; border-radius: 4px; display: inline-block; margin: 5px 0; font-family: monospace; letter-spacing: 1px;">${password}</strong>`)
       .replace(/{link}/g, appUrl)
       .replace(/\n/g, '<br>');
 
@@ -166,36 +166,36 @@ export async function POST(request: NextRequest) {
 <html>
   <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=${template.fontFamily.replace(/ /g, '+')}:wght@400;600;700&display=swap" rel="stylesheet">
-    <style>
-      body { font-family: ${template.fontFamily}; line-height: 1.6; color: ${template.textColor}; background-color: ${template.backgroundColor}; margin: 0; padding: 0; }
-      .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-      .header { background: linear-gradient(135deg, ${template.primaryColor} 0%, ${template.secondaryColor} 100%); color: white; padding: 30px; text-align: center; }
-      .header h1 { margin: 0; font-size: 28px; }
-      .content { padding: 30px; }
-      .button { display: inline-block; padding: 12px 30px; background: ${template.buttonColor}; color: ${template.buttonTextColor}; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: 600; }
-      .footer { background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #e9ecef; }
-    </style>
   </head>
-  <body>
-    <div class="container">
-      <div class="header">
-        <h1>${template.headerTitle}</h1>
-      </div>
-      <div class="content">
-        <p>${emailBody}</p>
-
-        <div style="text-align: center;">
-          <a href="${appUrl}" class="button">Acessar Sistema</a>
-        </div>
-      </div>
-      <div class="footer">
-        <p>${template.footerText}</p>
-        <p>© ${new Date().getFullYear()} ${template.companyName}. Todos os direitos reservados.</p>
-      </div>
-    </div>
+  <body style="font-family: ${template.fontFamily}; line-height: 1.6; color: ${template.textColor}; background-color: ${template.backgroundColor}; margin: 0; padding: 20px;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+      <tr>
+        <td style="background: linear-gradient(135deg, ${template.primaryColor} 0%, ${template.secondaryColor} 100%); color: white; padding: 30px; text-align: center;">
+          <h1 style="margin: 0; font-size: 28px; font-weight: 700;">${template.headerTitle}</h1>
+        </td>
+      </tr>
+      <tr>
+        <td style="padding: 30px; color: ${template.textColor};">
+          <div style="line-height: 1.8; font-size: 15px;">
+            ${emailBody}
+          </div>
+          
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${appUrl}" style="display: inline-block; padding: 14px 32px; background: ${template.buttonColor}; color: ${template.buttonTextColor} !important; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">Acessar Sistema</a>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td style="background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #e9ecef;">
+          <p style="margin: 5px 0;">${template.footerText}</p>
+          <p style="margin: 5px 0;">© ${new Date().getFullYear()} ${template.companyName}. Todos os direitos reservados.</p>
+        </td>
+      </tr>
+    </table>
   </body>
 </html>
     `;
