@@ -36,7 +36,8 @@ export function AddUserDialog({ onUserAdded }: AddUserDialogProps) {
   const { auth, firestore } = useFirebase();
 
   const [formData, setFormData] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
     email: '',
     phone: '',
     phoneCountryCode: '+55',
@@ -48,10 +49,10 @@ export function AddUserDialog({ onUserAdded }: AddUserDialogProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.name || !formData.email || !formData.password) {
+    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
       toast({
         title: 'Campos obrigatórios',
-        description: 'Por favor, preencha nome, email e senha.',
+        description: 'Por favor, preencha nome, sobrenome, email e senha.',
         variant: 'destructive',
       });
       return;
@@ -97,6 +98,9 @@ export function AddUserDialog({ onUserAdded }: AddUserDialogProps) {
         ? `${formData.phoneCountryCode} ${formData.phone}` 
         : '';
 
+      // Combinar nome e sobrenome para displayName
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim();
+
       // Chamar API para criar usuário
       const response = await fetch('/api/admin/create-user', {
         method: 'POST',
@@ -106,6 +110,7 @@ export function AddUserDialog({ onUserAdded }: AddUserDialogProps) {
         },
         body: JSON.stringify({
           ...formData,
+          name: fullName,
           phone: phoneWithCountryCode,
         }),
       });
@@ -139,12 +144,13 @@ export function AddUserDialog({ onUserAdded }: AddUserDialogProps) {
 
       toast({
         title: 'Usuário criado!',
-        description: `${formData.name} foi adicionado com sucesso.`,
+        description: `${formData.firstName} ${formData.lastName} foi adicionado com sucesso.`,
       });
 
       // Reset form
       setFormData({
-        name: '',
+        firstName: '',
+        lastName: '',
         email: '',
         phone: '',
         phoneCountryCode: '+55',
@@ -184,15 +190,27 @@ export function AddUserDialog({ onUserAdded }: AddUserDialogProps) {
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name">Nome Completo *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="João Silva"
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="firstName">Nome *</Label>
+                <Input
+                  id="firstName"
+                  value={formData.firstName}
+                  onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                  placeholder="João"
+                  required
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="lastName">Sobrenome *</Label>
+                <Input
+                  id="lastName"
+                  value={formData.lastName}
+                  onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                  placeholder="Silva"
+                  required
+                />
+              </div>
             </div>
             <div className="grid gap-2">
               <Label htmlFor="email">Email *</Label>

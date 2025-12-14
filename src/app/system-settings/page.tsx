@@ -26,6 +26,7 @@ export default function SystemSettingsPage() {
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
+  const [isSendingTestEmail, setIsSendingTestEmail] = React.useState(false);
   const [formData, setFormData] = React.useState({
     aiProvider: 'gemini',
     aiApiKey: '',
@@ -33,6 +34,9 @@ export default function SystemSettingsPage() {
     exchangeRateApiKey: '',
     wiseApiKey: '',
     c6ApiKey: '',
+    resendApiKey: '',
+    resendFromEmail: '',
+    appUrl: '',
   });
 
   // Redirect non-master users (apenas após carregar as permissões)
@@ -56,6 +60,9 @@ export default function SystemSettingsPage() {
             exchangeRateApiKey: result.data.exchangeRateApiKey || '',
             wiseApiKey: result.data.wiseApiKey || '',
             c6ApiKey: result.data.c6ApiKey || '',
+            resendApiKey: result.data.resendApiKey || '',
+            resendFromEmail: result.data.resendFromEmail || '',
+            appUrl: result.data.appUrl || '',
           });
         }
       }
@@ -125,6 +132,89 @@ export default function SystemSettingsPage() {
     }
   };
 
+  const handleSendTestEmail = async () => {
+    if (!user?.email || !auth) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Usuário não identificado',
+      });
+      return;
+    }
+
+    if (!formData.resendApiKey || !formData.resendFromEmail || !formData.appUrl) {
+      toast({
+        variant: 'destructive',
+        title: 'Configurações incompletas',
+        description: 'Configure a API Key, Email Remetente e URL do App antes de enviar o teste',
+      });
+      return;
+    }
+
+    setIsSendingTestEmail(true);
+
+    try {
+      // Primeiro salvar as configurações se estiver editando
+      if (isEditing) {
+        const currentData = await getUserSettings(firestore!, user.uid);
+        await saveUserSettings(
+          firestore!,
+          auth,
+          user.uid,
+          user,
+          {
+            firstName: currentData.data?.firstName || '',
+            lastName: currentData.data?.lastName || '',
+            email: currentData.data?.email || user.email || '',
+            timezone: currentData.data?.timezone || 'America/Sao_Paulo',
+            ...(currentData.success && currentData.data ? currentData.data : {}),
+            ...formData,
+          }
+        );
+      }
+
+      // Obter token
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Não foi possível obter token de autenticação');
+      }
+
+      // Enviar email de teste
+      const response = await fetch('/api/admin/send-welcome-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: user.displayName || 'Usuário Master',
+          email: user.email,
+          password: '********',
+        }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao enviar email de teste');
+      }
+
+      toast({
+        title: 'Email enviado!',
+        description: `Email de teste enviado com sucesso para ${user.email}`,
+      });
+    } catch (error: any) {
+      console.error('Error sending test email:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao enviar email',
+        description: error.message,
+      });
+    } finally {
+      setIsSendingTestEmail(false);
+    }
+  };
+
   const handleCancel = async () => {
     setIsEditing(false);
     if (user?.uid && firestore) {
@@ -137,6 +227,9 @@ export default function SystemSettingsPage() {
           exchangeRateApiKey: result.data.exchangeRateApiKey || '',
           wiseApiKey: result.data.wiseApiKey || '',
           c6ApiKey: result.data.c6ApiKey || '',
+          resendApiKey: result.data.resendApiKey || '',
+          resendFromEmail: result.data.resendFromEmail || '',
+          appUrl: result.data.appUrl || '',
         });
       }
     }
@@ -372,7 +465,7 @@ export default function SystemSettingsPage() {
         </Card>
 
         {/* Bank APIs Configuration */}
-        <Card className="lg:col-span-2">
+        <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -390,9 +483,7 @@ export default function SystemSettingsPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Coluna 1: Configuração */}
-              <div className="space-y-4">
+            <div className="space-y-4">
                 {/* Status das Chaves */}
                 {(formData.wiseApiKey || formData.c6ApiKey) && !isEditing && (
                   <div className="space-y-2">
@@ -474,21 +565,138 @@ export default function SystemSettingsPage() {
                     </div>
                   </div>
                 </div>
-              </div>
 
-              {/* Coluna 2: Carregar Chave */}
+                <div className="pt-4 border-t">
+                  <BankApiKeyLoader 
+                    savedWiseKey={formData.wiseApiKey}
+                    savedC6Key={formData.c6ApiKey}
+                    isEditing={isEditing}
+                    onLoaded={() => {
+                      toast({
+                        title: 'API carregada',
+                        description: 'As chaves de API bancárias foram carregadas com sucesso para esta sessão.',
+                      });
+                    }}
+                  />
+                </div>
+              </div>
+          </CardContent>
+        </Card>
+
+        {/* Resend Email API Configuration */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
               <div>
-                <BankApiKeyLoader 
-                  savedWiseKey={formData.wiseApiKey}
-                  savedC6Key={formData.c6ApiKey}
-                  isEditing={isEditing}
-                  onLoaded={() => {
-                    toast({
-                      title: 'API carregada',
-                      description: 'As chaves de API bancárias foram carregadas com sucesso para esta sessão.',
-                    });
-                  }}
-                />
+                <CardTitle>📧 API de Email (Resend)</CardTitle>
+                <CardDescription>Configure a chave de API do Resend para envio de emails</CardDescription>
+              </div>
+              {formData.resendApiKey && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900 rounded-full">
+                  <div className="h-2 w-2 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-medium text-green-700 dark:text-green-300">Configurada</span>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Status da Chave */}
+            {formData.resendApiKey && !isEditing && (
+              <div className="p-3 bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">
+                      📧 Resend Email API
+                    </p>
+                    <p className="text-xs text-indigo-700 dark:text-indigo-300 font-mono">
+                      {formData.resendApiKey.substring(0, 8)}...{formData.resendApiKey.slice(-4)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="resendApiKey">Chave de API do Resend</Label>
+              <Input
+                id="resendApiKey"
+                name="resendApiKey"
+                type="password"
+                value={formData.resendApiKey}
+                onChange={handleInputChange}
+                placeholder="re_..."
+                disabled={!isEditing}
+              />
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p className="font-medium">Obtenha sua chave de API:</p>
+                <p>🔗 <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Resend Dashboard</a> - Crie uma conta gratuita</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="resendFromEmail">Email Remetente</Label>
+              <Input
+                id="resendFromEmail"
+                name="resendFromEmail"
+                type="email"
+                value={formData.resendFromEmail}
+                onChange={handleInputChange}
+                placeholder="noreply@seudominio.com"
+                disabled={!isEditing}
+              />
+              <div className="text-xs text-muted-foreground">
+                <p>Email que aparecerá como remetente dos emails enviados</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="appUrl">URL do Aplicativo</Label>
+              <Input
+                id="appUrl"
+                name="appUrl"
+                type="url"
+                value={formData.appUrl}
+                onChange={handleInputChange}
+                placeholder="https://seudominio.com"
+                disabled={!isEditing}
+              />
+              <div className="text-xs text-muted-foreground">
+                <p>URL completa do seu aplicativo (usado nos links de login dos emails)</p>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleSendTestEmail}
+                disabled={isSendingTestEmail || !formData.resendApiKey || !formData.resendFromEmail || !formData.appUrl}
+                className="w-full"
+              >
+                {isSendingTestEmail ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Enviando...
+                  </>
+                ) : (
+                  '🧪 Enviar Email de Teste'
+                )}
+              </Button>
+              <p className="text-xs text-muted-foreground text-center mt-2">
+                Enviará um email de teste para: {user?.email}
+              </p>
+            </div>
+
+            <div className="p-4 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <div className="flex items-start gap-2">
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    ℹ️ Sobre o Resend
+                  </p>
+                  <p className="text-xs text-blue-800 dark:text-blue-200">
+                    Resend é um serviço de email moderno e confiável. O plano gratuito oferece 100 emails/dia e 3.000 emails/mês.
+                  </p>
+                </div>
               </div>
             </div>
           </CardContent>

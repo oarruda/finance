@@ -2,10 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import WelcomeEmail from '@/components/emails/welcome-email';
 import { firebaseConfig } from '@/firebase/config';
+import { initializeApp, getApps } from 'firebase/app';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
 
-// Inicializar Resend com a API key
-// Você precisa adicionar RESEND_API_KEY no arquivo .env.local
-const resend = new Resend(process.env.RESEND_API_KEY || 'dummy_key_for_build');
+// Inicializar Firebase no servidor
+function getFirebaseApp() {
+  if (!getApps().length) {
+    return initializeApp(firebaseConfig);
+  }
+  return getApps()[0];
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,6 +38,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
     }
 
+    const verifyData = await verifyResponse.json();
+    const currentUser = verifyData.users[0];
+    const currentUserId = currentUser.localId;
+
     // Obter dados do body
     const body = await request.json();
     const { name, email, password } = body;
@@ -42,27 +52,50 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
+    // Buscar as configurações do Resend no Firestore (configurações do usuário MASTER)
+    const app = getFirebaseApp();
+    const firestore = getFirestore(app);
+    const userSettingsRef = doc(firestore, 'users', currentUserId);
+    const userSettingsSnap = await getDoc(userSettingsRef);
+
+    let resendApiKey = process.env.RESEND_API_KEY || '';
+    let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
+    let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+
+    if (userSettingsSnap.exists()) {
+      const settings = userSettingsSnap.data();
+      if (settings.resendApiKey) {
+        resendApiKey = settings.resendApiKey;
+      }
+      if (settings.resendFromEmail) {
+        resendFromEmail = settings.resendFromEmail;
+      }
+      if (settings.appUrl) {
+        appUrl = settings.appUrl;
+      }
+    }
+
     // Verificar se a API key do Resend está configurada
-    if (!process.env.RESEND_API_KEY) {
+    if (!resendApiKey) {
       console.error('RESEND_API_KEY não está configurada');
       return NextResponse.json({ 
-        error: 'Serviço de email não configurado. Configure RESEND_API_KEY no arquivo .env.local' 
+        error: 'Serviço de email não configurado. Configure a API Key do Resend nas Configurações de Sistema' 
       }, { status: 500 });
     }
 
-    // URL de login (ajustar conforme necessário)
-    const loginUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+    // Inicializar Resend com a chave configurada
+    const resend = new Resend(resendApiKey);
 
     // Enviar email usando Resend
     const { data, error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>',
+      from: resendFromEmail,
       to: [email],
       subject: '🎉 Bem-vindo ao Sistema Financeiro - Suas Credenciais de Acesso',
       react: WelcomeEmail({
         name,
         email,
         password,
-        loginUrl,
+        loginUrl: appUrl,
       }),
     });
 

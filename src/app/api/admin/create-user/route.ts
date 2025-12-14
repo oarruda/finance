@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Corpo da requisição inválido' }, { status: 400 });
     }
     
-    const { name, email, password, phone, cpf, role } = body;
+    const { name, email, password, phone, cpf, role, firstName, lastName } = body;
 
     if (!name || !email || !password) {
       console.log('Missing required fields:', { name: !!name, email: !!email, password: !!password });
@@ -142,6 +142,8 @@ export async function POST(request: NextRequest) {
         id: userId,
         email,
         name,
+        firstName: firstName || '',
+        lastName: lastName || '',
         phone: phone || '',
         cpf: cpf || '',
         role: role || 'viewer',

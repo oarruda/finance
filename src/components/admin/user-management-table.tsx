@@ -739,30 +739,75 @@ export function UserManagementTable() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="timezone">Fuso Horário</Label>
-                    <Input
-                      id="timezone"
+                    <Select
                       value={editFormData.timezone || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, timezone: e.target.value })}
-                      placeholder="America/Sao_Paulo"
-                    />
+                      onValueChange={(value) => setEditFormData({ ...editFormData, timezone: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o fuso horário" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="America/Sao_Paulo">São Paulo (GMT-3)</SelectItem>
+                        <SelectItem value="America/New_York">New York (GMT-5)</SelectItem>
+                        <SelectItem value="America/Chicago">Chicago (GMT-6)</SelectItem>
+                        <SelectItem value="America/Los_Angeles">Los Angeles (GMT-8)</SelectItem>
+                        <SelectItem value="Europe/London">Londres (GMT+0)</SelectItem>
+                        <SelectItem value="Europe/Paris">Paris (GMT+1)</SelectItem>
+                        <SelectItem value="Europe/Berlin">Berlim (GMT+1)</SelectItem>
+                        <SelectItem value="Europe/Madrid">Madrid (GMT+1)</SelectItem>
+                        <SelectItem value="Europe/Lisbon">Lisboa (GMT+0)</SelectItem>
+                        <SelectItem value="Asia/Tokyo">Tóquio (GMT+9)</SelectItem>
+                        <SelectItem value="Asia/Shanghai">Xangai (GMT+8)</SelectItem>
+                        <SelectItem value="Asia/Dubai">Dubai (GMT+4)</SelectItem>
+                        <SelectItem value="Australia/Sydney">Sydney (GMT+10)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="defaultCurrency">Moeda Padrão</Label>
-                    <Input
-                      id="defaultCurrency"
+                    <Select
                       value={editFormData.defaultCurrency || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, defaultCurrency: e.target.value })}
-                      placeholder="BRL"
-                    />
+                      onValueChange={(value) => setEditFormData({ ...editFormData, defaultCurrency: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a moeda" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="BRL">Real (BRL - R$)</SelectItem>
+                        <SelectItem value="USD">Dólar Americano (USD - $)</SelectItem>
+                        <SelectItem value="EUR">Euro (EUR - €)</SelectItem>
+                        <SelectItem value="GBP">Libra Esterlina (GBP - £)</SelectItem>
+                        <SelectItem value="JPY">Iene (JPY - ¥)</SelectItem>
+                        <SelectItem value="CAD">Dólar Canadense (CAD - C$)</SelectItem>
+                        <SelectItem value="AUD">Dólar Australiano (AUD - A$)</SelectItem>
+                        <SelectItem value="CHF">Franco Suíço (CHF - Fr)</SelectItem>
+                        <SelectItem value="CNY">Yuan Chinês (CNY - ¥)</SelectItem>
+                        <SelectItem value="ARS">Peso Argentino (ARS - $)</SelectItem>
+                        <SelectItem value="MXN">Peso Mexicano (MXN - $)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="defaultLanguage">Idioma</Label>
-                    <Input
-                      id="defaultLanguage"
+                    <Select
                       value={editFormData.defaultLanguage || ''}
-                      onChange={(e) => setEditFormData({ ...editFormData, defaultLanguage: e.target.value })}
-                      placeholder="pt-BR"
-                    />
+                      onValueChange={(value) => setEditFormData({ ...editFormData, defaultLanguage: value })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o idioma" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="pt-BR">Português (Brasil)</SelectItem>
+                        <SelectItem value="en-US">English (US)</SelectItem>
+                        <SelectItem value="es-ES">Español (España)</SelectItem>
+                        <SelectItem value="fr-FR">Français (France)</SelectItem>
+                        <SelectItem value="de-DE">Deutsch (Deutschland)</SelectItem>
+                        <SelectItem value="it-IT">Italiano (Italia)</SelectItem>
+                        <SelectItem value="ja-JP">日本語 (日本)</SelectItem>
+                        <SelectItem value="zh-CN">中文 (中国)</SelectItem>
+                        <SelectItem value="ru-RU">Русский (Россия)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
               </div>
