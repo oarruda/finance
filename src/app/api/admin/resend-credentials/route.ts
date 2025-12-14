@@ -93,61 +93,36 @@ export async function POST(request: NextRequest) {
     const getUserData = await getUserResponse.json();
     console.log('Resposta da busca de usuário:', getUserData);
 
-    let firebaseUserId = getUserData.users?.[0]?.localId;
-
-    // Se usuário não existe no Auth, recriar
+    // Verificar se usuário foi encontrado
     if (!getUserResponse.ok || !getUserData.users || getUserData.users.length === 0) {
-      console.log('Usuário não encontrado no Auth, recriando:', email);
-      
-      // Criar usuário no Firebase Auth
-      const createUserResponse = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${firebaseConfig.apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
-            password: newPassword,
-            displayName: name,
-            returnSecureToken: true,
-          }),
-        }
-      );
+      console.error('Usuário não encontrado no Firebase Auth:', email);
+      return NextResponse.json({ 
+        error: 'Usuário não encontrado no Firebase Auth. Entre em contato com o administrador.'
+      }, { status: 404 });
+    }
 
-      if (!createUserResponse.ok) {
-        const errorData = await createUserResponse.json();
-        console.error('Erro ao recriar usuário no Auth:', errorData);
-        return NextResponse.json({ 
-          error: 'Erro ao recriar usuário no Firebase Auth: ' + (errorData.error?.message || 'Erro desconhecido')
-        }, { status: 500 });
+    const firebaseUserId = getUserData.users[0].localId;
+    console.log('Firebase User ID encontrado:', firebaseUserId);
+    
+    // Atualizar senha do usuário
+    const updatePasswordResponse = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${firebaseConfig.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          localId: firebaseUserId,
+          password: newPassword,
+        }),
       }
+    );
 
-      const createUserData = await createUserResponse.json();
-      firebaseUserId = createUserData.localId;
-      console.log('Usuário recriado no Auth com ID:', firebaseUserId);
-    } else {
-      console.log('Firebase User ID encontrado:', firebaseUserId);
-      
-      // Atualizar senha do usuário existente
-      const updatePasswordResponse = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${firebaseConfig.apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            localId: firebaseUserId,
-            password: newPassword,
-          }),
-        }
-      );
-
-      if (!updatePasswordResponse.ok) {
-        const errorData = await updatePasswordResponse.json();
-        console.error('Erro ao atualizar senha:', errorData);
-        return NextResponse.json({ 
-          error: 'Erro ao atualizar senha: ' + (errorData.error?.message || 'Erro desconhecido')
-        }, { status: 500 });
-      }
+    if (!updatePasswordResponse.ok) {
+      const errorData = await updatePasswordResponse.json();
+      console.error('Erro ao atualizar senha:', errorData);
+      return NextResponse.json({ 
+        error: 'Erro ao atualizar senha: ' + (errorData.error?.message || 'Erro desconhecido')
+      }, { status: 500 });
     }
 
     console.log('Senha definida com sucesso, marcando como temporária...');
