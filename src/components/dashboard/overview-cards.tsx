@@ -1,10 +1,10 @@
 'use client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn, formatCurrency } from '@/lib/utils';
-import { ArrowUpRight, ArrowDownRight, DollarSign, CreditCard, Users, TrendingUp } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, DollarSign, CreditCard, Users, TrendingUp, CheckCircle } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
-import type { Transaction } from '@/lib/types';
-import { collection, query, where } from 'firebase/firestore';
+import type { Transaction, User as UserType } from '@/lib/types';
+import { collection, query, where, Timestamp } from 'firebase/firestore';
 import { Skeleton } from '../ui/skeleton';
 import { useUserCurrency } from '@/hooks/use-user-currency';
 import { useLanguage } from '@/lib/i18n';
@@ -19,7 +19,22 @@ export function OverviewCards() {
         return query(collection(firestore, 'users', user.uid, 'transactions'));
     }, [firestore, user]);
 
+    const usersQuery = useMemoFirebase(() => {
+        return query(collection(firestore, 'users'));
+    }, [firestore]);
+
     const { data: transactions, isLoading } = useCollection<Transaction>(transactionsQuery);
+    const { data: allUsers, isLoading: isLoadingUsers } = useCollection<UserType>(usersQuery);
+
+    // Usuários online agora (últimos 5 minutos)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+    const onlineUsers = allUsers?.filter(u => {
+        if (!u.lastActive || u.disabled) return false;
+        const lastActiveDate = u.lastActive instanceof Timestamp 
+            ? u.lastActive.toDate() 
+            : new Date(u.lastActive);
+        return lastActiveDate > fiveMinutesAgo;
+    }) || [];
 
     const totalIncome = transactions?.filter(t => t.type === 'income').reduce((acc, t) => acc + Math.abs(t.amount), 0) ?? 0;
     const totalExpenses = transactions?.filter(t => t.type === 'expense').reduce((acc, t) => acc + Math.abs(t.amount), 0) ?? 0;
@@ -50,10 +65,11 @@ export function OverviewCards() {
         },
         {
             label: t('dashboard.activeUsers'),
-            value: "1",
+            value: onlineUsers.length.toString(),
             change: "",
             changeType: 'positive',
             icon: Users,
+            isOnlineUsers: true,
         },
     ];
 
@@ -247,10 +263,17 @@ export function OverviewCards() {
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{item.label}</CardTitle>
-                <item.icon className="h-6 w-6 text-muted-foreground transition-transform duration-300 hover:scale-125 hover:rotate-12" />
+                <div className="flex flex-col items-center gap-0.5">
+                  <item.icon className="h-6 w-6 text-muted-foreground transition-transform duration-300 hover:scale-125 hover:rotate-12" />
+                  {item.isOnlineUsers && (
+                    <span className="text-xs font-semibold text-green-600">{item.value}</span>
+                  )}
+                </div>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold transition-colors duration-300 hover:text-primary">{item.value}</div>
+                {!item.isOnlineUsers && (
+                  <div className="text-2xl font-bold transition-colors duration-300 hover:text-primary">{item.value}</div>
+                )}
                 {item.change && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <span
@@ -265,6 +288,23 @@ export function OverviewCards() {
                         {item.change}
                     </span>
                     </p>
+                )}
+                
+                {/* Mostrar usuários online dentro do card */}
+                {item.isOnlineUsers && onlineUsers.length > 0 && (
+                  <div className="space-y-1 max-h-24 overflow-y-auto">
+                    {onlineUsers.map((onlineUser) => (
+                      <div 
+                        key={onlineUser.id}
+                        className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                      >
+                        <CheckCircle className="h-3 w-3 text-green-500 flex-shrink-0" />
+                        <span className="truncate">
+                          {onlineUser.name ? onlineUser.name.split(' ')[0] : onlineUser.email.split('@')[0]}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </CardContent>
             </Card>
