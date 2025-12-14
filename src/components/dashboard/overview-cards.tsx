@@ -263,17 +263,10 @@ export function OverviewCards() {
             >
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">{item.label}</CardTitle>
-                <div className="flex flex-col items-center gap-0.5">
-                  <item.icon className="h-6 w-6 text-muted-foreground transition-transform duration-300 hover:scale-125 hover:rotate-12" />
-                  {item.isOnlineUsers && (
-                    <span className="text-xs font-semibold text-green-600">{item.value}</span>
-                  )}
-                </div>
+                <item.icon className="h-6 w-6 text-muted-foreground transition-transform duration-300 hover:scale-125 hover:rotate-12" />
               </CardHeader>
               <CardContent>
-                {!item.isOnlineUsers && (
-                  <div className="text-2xl font-bold transition-colors duration-300 hover:text-primary">{item.value}</div>
-                )}
+                <div className="text-2xl font-bold transition-colors duration-300 hover:text-primary">{item.value}</div>
                 {item.change && (
                     <p className="text-xs text-muted-foreground flex items-center gap-1">
                     <span
