@@ -2,16 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import WelcomeEmail from '@/components/emails/welcome-email';
 import { firebaseConfig } from '@/firebase/config';
-import { initializeApp, getApps } from 'firebase/app';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
-
-// Inicializar Firebase no servidor
-function getFirebaseApp() {
-  if (!getApps().length) {
-    return initializeApp(firebaseConfig);
-  }
-  return getApps()[0];
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -52,27 +42,38 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Buscar as configurações do Resend no Firestore (configurações do usuário MASTER)
-    const app = getFirebaseApp();
-    const firestore = getFirestore(app);
-    const userSettingsRef = doc(firestore, 'users', currentUserId);
-    const userSettingsSnap = await getDoc(userSettingsRef);
-
+    // Buscar as configurações do Resend no Firestore usando REST API
+    const projectId = firebaseConfig.projectId;
+    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${currentUserId}`;
+    
     let resendApiKey = process.env.RESEND_API_KEY || '';
     let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
     let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
-    if (userSettingsSnap.exists()) {
-      const settings = userSettingsSnap.data();
-      if (settings.resendApiKey) {
-        resendApiKey = settings.resendApiKey;
+    try {
+      const firestoreResponse = await fetch(firestoreUrl, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+
+      if (firestoreResponse.ok) {
+        const userData = await firestoreResponse.json();
+        const fields = userData.fields || {};
+        
+        if (fields.resendApiKey?.stringValue) {
+          resendApiKey = fields.resendApiKey.stringValue;
+        }
+        if (fields.resendFromEmail?.stringValue) {
+          resendFromEmail = fields.resendFromEmail.stringValue;
+        }
+        if (fields.appUrl?.stringValue) {
+          appUrl = fields.appUrl.stringValue;
+        }
       }
-      if (settings.resendFromEmail) {
-        resendFromEmail = settings.resendFromEmail;
-      }
-      if (settings.appUrl) {
-        appUrl = settings.appUrl;
-      }
+    } catch (firestoreError) {
+      console.error('Erro ao buscar configurações do Firestore, usando variáveis de ambiente:', firestoreError);
+      // Continuar com valores padrão
     }
 
     // Verificar se a API key do Resend está configurada
