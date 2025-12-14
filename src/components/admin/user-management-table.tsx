@@ -138,8 +138,28 @@ export function UserManagementTable() {
 
     setDeletingId(userToDelete.id);
     try {
-      // Deletar documento do usuário
-      await deleteDoc(doc(firestore, 'users', userToDelete.id));
+      // Obter token do usuário atual
+      const token = await auth?.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Não foi possível obter token de autenticação');
+      }
+
+      // Chamar API para deletar usuário do Firebase Auth e Firestore
+      const response = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId: userToDelete.id,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Erro ao deletar usuário');
+      }
 
       // Atualizar lista local
       if (setData && users) {
@@ -148,14 +168,14 @@ export function UserManagementTable() {
 
       toast({
         title: 'Sucesso',
-        description: 'Usuário deletado com sucesso.',
+        description: 'Usuário deletado com sucesso do Firebase Auth e Firestore.',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Erro ao deletar usuário:', error);
       toast({
         variant: 'destructive',
         title: 'Erro',
-        description: 'Falha ao deletar usuário. Você precisa ter permissões de Master.',
+        description: error.message || 'Falha ao deletar usuário.',
       });
     } finally {
       setDeletingId(null);
