@@ -126,6 +126,7 @@ export function AddUserDialog({ onUserAdded }: AddUserDialogProps) {
         const userRef = doc(firestore, 'users', result.userId);
         await setDoc(userRef, {
           ...result.userData,
+          isTemporaryPassword: true,
           createdAt: new Date(),
           updatedAt: new Date(),
         });

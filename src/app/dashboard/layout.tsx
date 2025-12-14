@@ -8,11 +8,13 @@ import {
   SidebarInset,
   SidebarProvider,
 } from '@/components/ui/sidebar';
-import { useUser } from '@/firebase';
+import { useUser, useFirebase } from '@/firebase';
 import { redirect } from 'next/navigation';
 import * as React from 'react';
 import { Loader2 } from 'lucide-react';
 import { useUserPresence } from '@/hooks/use-user-presence';
+import { ChangePasswordDialog } from '@/components/auth/change-password-dialog';
+import { doc, getDoc } from 'firebase/firestore';
 
 export default function DashboardLayout({
   children,
@@ -20,10 +22,42 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
     const { user, isUserLoading } = useUser();
+    const { firestore } = useFirebase();
     const [isMounted, setIsMounted] = React.useState(false);
+    const [showChangePassword, setShowChangePassword] = React.useState(false);
+    const [isCheckingPassword, setIsCheckingPassword] = React.useState(true);
     
     // Atualizar presença do usuário
     useUserPresence();
+
+    // Verificar se a senha é temporária
+    React.useEffect(() => {
+        const checkTemporaryPassword = async () => {
+            if (user?.uid && firestore) {
+                try {
+                    const userRef = doc(firestore, 'users', user.uid);
+                    const userSnap = await getDoc(userRef);
+                    
+                    if (userSnap.exists()) {
+                        const userData = userSnap.data();
+                        if (userData.isTemporaryPassword === true) {
+                            setShowChangePassword(true);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Erro ao verificar senha temporária:', error);
+                } finally {
+                    setIsCheckingPassword(false);
+                }
+            } else if (user && !firestore) {
+                setIsCheckingPassword(false);
+            }
+        };
+
+        if (!isUserLoading && user) {
+            checkTemporaryPassword();
+        }
+    }, [user, firestore, isUserLoading]);
 
     // Aguardar montagem do cliente para evitar hydration mismatch
     React.useEffect(() => {
@@ -65,19 +99,31 @@ export default function DashboardLayout({
     }
 
   return (
-    <SidebarProvider>
-      <div className="md:flex min-h-screen w-full">
-        <Sidebar>
-          <SidebarNav />
-        </Sidebar>
-        <SidebarInset className="w-full">
-          <div className="flex flex-col min-h-screen">
-            <Header />
-            <main className="flex-1 p-5 sm:p-6 lg:p-8">{children}</main>
-            <Footer />
-          </div>
-        </SidebarInset>
-      </div>
+    <>
+      <SidebarProvider>
+        <div className="md:flex min-h-screen w-full">
+          <Sidebar>
+            <SidebarNav />
+          </Sidebar>
+          <SidebarInset className="w-full">
+            <div className="flex flex-col min-h-screen">
+              <Header />
+              <main className="flex-1 p-5 sm:p-6 lg:p-8">{children}</main>
+              <Footer />
+            </div>
+          </SidebarInset>
+        </div>
+      </SidebarProvider>
+
+      {/* Dialog de troca de senha obrigatória */}
+      {user && !isCheckingPassword && (
+        <ChangePasswordDialog 
+          open={showChangePassword}
+          userId={user.uid}
+          onPasswordChanged={() => setShowChangePassword(false)}
+        />
+      )}
+    </>
     </SidebarProvider>
   );
 }

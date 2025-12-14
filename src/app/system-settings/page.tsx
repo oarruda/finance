@@ -731,6 +731,16 @@ export default function SystemSettingsPage() {
                 </div>
               </div>
             </div>
+
+            <div className="pt-4 border-t">
+              <Button
+                variant="outline"
+                onClick={() => router.push('/email-templates')}
+                className="w-full"
+              >
+                🎨 Personalizar Templates de Email
+              </Button>
+            </div>
           </CardContent>
         </Card>
       </div>

@@ -196,8 +196,8 @@ export function UserManagementTable() {
       }
 
       toast({
-        title: 'Email de reset enviado!',
-        description: `Um link para redefinir a senha foi enviado para ${user.email}. O usuário poderá criar uma nova senha.`,
+        title: 'Nova senha enviada!',
+        description: `Uma nova senha temporária foi gerada e enviada para ${user.email}. O usuário receberá um email com as novas credenciais de acesso.`,
       });
     } catch (error: any) {
       console.error('Erro ao reenviar email:', error);

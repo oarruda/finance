@@ -107,22 +107,65 @@ export async function POST(request: NextRequest) {
     // Inicializar Resend com a chave configurada
     const resend = new Resend(resendApiKey);
 
-    // Criar HTML do email
+    // Buscar template personalizado do Firestore
+    let template = {
+      primaryColor: '#667eea',
+      secondaryColor: '#764ba2',
+      backgroundColor: '#f4f4f4',
+      textColor: '#333333',
+      fontFamily: 'Arial, sans-serif',
+      headerTitle: '🎉 Bem-vindo ao Sistema Financeiro',
+      footerText: 'Este é um email automático. Por favor, não responda a esta mensagem.',
+      companyName: 'Sistema Financeiro',
+      buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      buttonTextColor: '#ffffff',
+    };
+
+    try {
+      const templateUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/emailTemplates/${currentUserId}`;
+      const templateResponse = await fetch(templateUrl, {
+        headers: { 'Authorization': `Bearer ${token}` },
+      });
+
+      if (templateResponse.ok) {
+        const templateDoc = await templateResponse.json();
+        const fields = templateDoc.fields || {};
+        
+        if (fields.welcome?.mapValue?.fields) {
+          const welcomeFields = fields.welcome.mapValue.fields;
+          if (welcomeFields.primaryColor?.stringValue) template.primaryColor = welcomeFields.primaryColor.stringValue;
+          if (welcomeFields.secondaryColor?.stringValue) template.secondaryColor = welcomeFields.secondaryColor.stringValue;
+          if (welcomeFields.backgroundColor?.stringValue) template.backgroundColor = welcomeFields.backgroundColor.stringValue;
+          if (welcomeFields.textColor?.stringValue) template.textColor = welcomeFields.textColor.stringValue;
+          if (welcomeFields.fontFamily?.stringValue) template.fontFamily = welcomeFields.fontFamily.stringValue;
+          if (welcomeFields.headerTitle?.stringValue) template.headerTitle = welcomeFields.headerTitle.stringValue;
+          if (welcomeFields.footerText?.stringValue) template.footerText = welcomeFields.footerText.stringValue;
+          if (welcomeFields.companyName?.stringValue) template.companyName = welcomeFields.companyName.stringValue;
+          if (welcomeFields.buttonColor?.stringValue) template.buttonColor = welcomeFields.buttonColor.stringValue;
+          if (welcomeFields.buttonTextColor?.stringValue) template.buttonTextColor = welcomeFields.buttonTextColor.stringValue;
+          console.log('✅ Template personalizado de boas-vindas carregado');
+        }
+      }
+    } catch (err) {
+      console.log('Usando template padrão (erro ao carregar personalizado):', err);
+    }
+
+    // Criar HTML do email com template personalizado
     const emailHtml = `
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8">
     <style>
-      body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f4; margin: 0; padding: 0; }
+      body { font-family: ${template.fontFamily}; line-height: 1.6; color: ${template.textColor}; background-color: ${template.backgroundColor}; margin: 0; padding: 0; }
       .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-      .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+      .header { background: linear-gradient(135deg, ${template.primaryColor} 0%, ${template.secondaryColor} 100%); color: white; padding: 30px; text-align: center; }
       .header h1 { margin: 0; font-size: 28px; }
       .content { padding: 30px; }
-      .credentials { background: #f8f9fa; border-left: 4px solid #667eea; padding: 15px; margin: 20px 0; border-radius: 4px; }
+      .credentials { background: #f8f9fa; border-left: 4px solid ${template.primaryColor}; padding: 15px; margin: 20px 0; border-radius: 4px; }
       .credentials p { margin: 10px 0; }
-      .credentials strong { color: #667eea; font-weight: 600; }
-      .button { display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: 600; }
+      .credentials strong { color: ${template.primaryColor}; font-weight: 600; }
+      .button { display: inline-block; padding: 12px 30px; background: ${template.buttonColor}; color: ${template.buttonTextColor}; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: 600; }
       .footer { background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #e9ecef; }
       .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
     </style>
@@ -130,7 +173,7 @@ export async function POST(request: NextRequest) {
   <body>
     <div class="container">
       <div class="header">
-        <h1>🎉 Bem-vindo ao Sistema Financeiro</h1>
+        <h1>${template.headerTitle}</h1>
       </div>
       <div class="content">
         <p>Olá <strong>${name}</strong>,</p>
@@ -154,8 +197,8 @@ export async function POST(request: NextRequest) {
         </p>
       </div>
       <div class="footer">
-        <p>Este é um email automático. Por favor, não responda a esta mensagem.</p>
-        <p>© ${new Date().getFullYear()} Sistema Financeiro. Todos os direitos reservados.</p>
+        <p>${template.footerText}</p>
+        <p>© ${new Date().getFullYear()} ${template.companyName}. Todos os direitos reservados.</p>
       </div>
     </div>
   </body>
