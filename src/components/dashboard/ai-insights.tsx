@@ -34,9 +34,27 @@ export function AIInsights() {
             transactionData: transactionDataString,
           });
           setInsights(result.insights);
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error fetching AI insights:", error);
-          setInsights(t('dashboard.aiInsightsError'));
+          console.log("Error full object:", JSON.stringify(error, null, 2));
+          console.log("Error message:", error?.message);
+          console.log("Error toString:", error?.toString());
+          
+          // Check if it's a quota/rate limit error - verificando em toda a estrutura do erro
+          const errorMessage = (error?.message || '').toLowerCase();
+          const errorString = JSON.stringify(error).toLowerCase();
+          const errorToString = (error?.toString() || '').toLowerCase();
+          const fullErrorText = errorMessage + errorString + errorToString;
+          
+          if (fullErrorText.includes('429') || 
+              fullErrorText.includes('too many requests') ||
+              fullErrorText.includes('quota') ||
+              fullErrorText.includes('rate limit') ||
+              fullErrorText.includes('limite de ia')) {
+            setInsights('⚠️ Limite de IA atingido, verifique com o administrador do sistema.');
+          } else {
+            setInsights(t('dashboard.aiInsightsError'));
+          }
         } finally {
           setIsLoading(false);
         }
@@ -47,7 +65,7 @@ export function AIInsights() {
     }
 
     fetchInsights();
-  }, [transactions]);
+  }, [transactions, t]);
 
   const [modalOpen, setModalOpen] = React.useState(false);
 

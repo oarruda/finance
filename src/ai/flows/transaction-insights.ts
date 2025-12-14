@@ -57,12 +57,23 @@ const transactionInsightsFlow = ai.defineFlow(
     outputSchema: TransactionInsightsOutputSchema,
   },
   async input => {
-    const prompt = getPromptByLanguage(input.language);
-    const {output} = await ai.generate({
-      model: 'googleai/gemini-2.5-flash',
-      prompt: prompt.replace('{{{transactionData}}}', input.transactionData),
-      output: {schema: TransactionInsightsOutputSchema},
-    });
-    return output!;
+    try {
+      const prompt = getPromptByLanguage(input.language);
+      const {output} = await ai.generate({
+        model: 'googleai/gemini-2.5-flash',
+        prompt: prompt.replace('{{{transactionData}}}', input.transactionData),
+        output: {schema: TransactionInsightsOutputSchema},
+      });
+      return output!;
+    } catch (error: any) {
+      // Check if it's a quota/rate limit error
+      if (error?.message?.includes('429') || 
+          error?.message?.includes('quota') || 
+          error?.message?.includes('Too Many Requests')) {
+        throw new Error('Limite de IA atingido, verifique com o administrador do sistema.');
+      }
+      // Re-throw other errors
+      throw error;
+    }
   }
 );

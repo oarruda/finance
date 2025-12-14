@@ -13,30 +13,35 @@ import { saveUserSettings, getUserSettings } from '@/lib/user-settings';
 import { useLanguage } from '@/lib/i18n';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useRouter } from 'next/navigation';
+import { AIApiKeyLoader } from '@/components/ai-api-key-loader';
+import { ExchangeRateApiKeyLoader } from '@/components/exchange-rate-api-key-loader';
+import { BankApiKeyLoader } from '@/components/bank-api-key-loader';
 
 export default function SystemSettingsPage() {
   const { user } = useUser();
   const { firestore, auth } = useFirebase();
   const { toast } = useToast();
   const { t } = useLanguage();
-  const { isMaster } = usePermissions();
+  const { isMaster, isLoading: permissionsLoading } = usePermissions();
   const router = useRouter();
   const [isLoading, setIsLoading] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [formData, setFormData] = React.useState({
     aiProvider: 'gemini',
     aiApiKey: '',
+    exchangeRateProvider: 'eodhd',
+    exchangeRateApiKey: '',
     wiseApiKey: '',
     c6ApiKey: '',
-    exchangeRateApiKey: '',
   });
 
-  // Redirect non-master users
+  // Redirect non-master users (apenas após carregar as permissões)
   React.useEffect(() => {
-    if (!isMaster) {
+    if (!permissionsLoading && !isMaster) {
+      console.log('Redirecionando: não é MASTER', { isMaster, permissionsLoading });
       router.push('/dashboard');
     }
-  }, [isMaster, router]);
+  }, [isMaster, permissionsLoading, router]);
 
   React.useEffect(() => {
     const loadUserSettings = async () => {
@@ -47,9 +52,10 @@ export default function SystemSettingsPage() {
           setFormData({
             aiProvider: result.data.aiProvider || 'gemini',
             aiApiKey: result.data.aiApiKey || '',
+            exchangeRateProvider: result.data.exchangeRateProvider || 'eodhd',
+            exchangeRateApiKey: result.data.exchangeRateApiKey || '',
             wiseApiKey: result.data.wiseApiKey || '',
             c6ApiKey: result.data.c6ApiKey || '',
-            exchangeRateApiKey: result.data.exchangeRateApiKey || '',
           });
         }
       }
@@ -127,14 +133,28 @@ export default function SystemSettingsPage() {
         setFormData({
           aiProvider: result.data.aiProvider || 'gemini',
           aiApiKey: result.data.aiApiKey || '',
+          exchangeRateProvider: result.data.exchangeRateProvider || 'eodhd',
+          exchangeRateApiKey: result.data.exchangeRateApiKey || '',
           wiseApiKey: result.data.wiseApiKey || '',
           c6ApiKey: result.data.c6ApiKey || '',
-          exchangeRateApiKey: result.data.exchangeRateApiKey || '',
         });
       }
     }
   };
 
+  // Mostrar loading enquanto verifica permissões
+  if (permissionsLoading) {
+    return (
+      <div className="flex items-center justify-center h-[50vh]">
+        <div className="text-center">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto mb-4 text-primary" />
+          <p className="text-muted-foreground">Verificando permissões...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Mostrar acesso restrito se não for MASTER
   if (!isMaster) {
     return (
       <div className="flex items-center justify-center h-[50vh]">
@@ -175,122 +195,302 @@ export default function SystemSettingsPage() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* AI Configuration */}
+        {/* AI APIs Configuration */}
         <Card>
           <CardHeader>
-            <CardTitle>Configurações de IA</CardTitle>
-            <CardDescription>Configure o provedor de IA e chave de API</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>🤖 APIs de Inteligência Artificial</CardTitle>
+                <CardDescription>Configure o provedor de IA...</CardDescription>
+              </div>
+              {formData.aiApiKey && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900 rounded-full">
+                  <div className="h-2 w-2 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-medium text-green-700 dark:text-green-300">Configurada</span>
+                </div>
+              )}
+            </div>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="aiProvider">Provedor de IA</Label>
-                <Select 
-                  value={formData.aiProvider} 
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, aiProvider: value }))}
-                  disabled={!isEditing}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="gemini">Google Gemini</SelectItem>
-                    <SelectItem value="openai">OpenAI</SelectItem>
-                    <SelectItem value="anthropic">Anthropic Claude</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="aiApiKey">Chave de API da IA</Label>
-                <Input
-                  id="aiApiKey"
-                  name="aiApiKey"
-                  type="password"
-                  value={formData.aiApiKey}
-                  onChange={handleInputChange}
-                  placeholder="sk-..."
-                  disabled={!isEditing}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Chave de API para integração com serviços de IA
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="exchangeRateApiKey">API de Taxa de Câmbio</Label>
-                <Input
-                  id="exchangeRateApiKey"
-                  name="exchangeRateApiKey"
-                  type="password"
-                  value={formData.exchangeRateApiKey}
-                  onChange={handleInputChange}
-                  placeholder="Chave da API"
-                  disabled={!isEditing}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Chave de API para obter taxas de câmbio atualizadas
-                </p>
-              </div>
-            </form>
-          </CardContent>
-        </Card>
-
-        {/* Bank APIs Configuration */}
-        <Card>
-          <CardHeader>
-            <CardTitle>APIs de Bancos</CardTitle>
-            <CardDescription>Configure chaves de API para integrações bancárias</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="wiseApiKey">Chave de API do Wise</Label>
-                <Input
-                  id="wiseApiKey"
-                  name="wiseApiKey"
-                  type="password"
-                  value={formData.wiseApiKey}
-                  onChange={handleInputChange}
-                  placeholder="wise_..."
-                  disabled={!isEditing}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Chave de API para integração com Wise (TransferWise)
-                </p>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="c6ApiKey">Chave de API do C6 Bank</Label>
-                <Input
-                  id="c6ApiKey"
-                  name="c6ApiKey"
-                  type="password"
-                  value={formData.c6ApiKey}
-                  onChange={handleInputChange}
-                  placeholder="c6_..."
-                  disabled={!isEditing}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Chave de API para integração com C6 Bank
-                </p>
-              </div>
-
-              <div className="p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
-                <div className="flex items-start gap-2">
-                  <ShieldAlert className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
-                  <div className="space-y-1">
-                    <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-                      Segurança Crítica
+          <CardContent className="space-y-4">
+            {/* Status da Chave */}
+            {formData.aiApiKey && !isEditing && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-950 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                      {formData.aiProvider === 'gemini' && '🟡 Google Gemini'}
+                      {formData.aiProvider === 'openai' && '🟢 OpenAI'}
+                      {formData.aiProvider === 'anthropic' && '🔵 Anthropic Claude'}
                     </p>
-                    <p className="text-xs text-amber-800 dark:text-amber-200">
-                      Estas chaves de API têm acesso a dados financeiros sensíveis. 
-                      Apenas o usuário MASTER deve ter acesso a estas configurações.
+                    <p className="text-xs text-blue-700 dark:text-blue-300 font-mono">
+                      {formData.aiApiKey.substring(0, 8)}...{formData.aiApiKey.slice(-4)}
                     </p>
                   </div>
                 </div>
               </div>
-            </form>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="aiProvider">Provedor de IA</Label>
+              <Select 
+                value={formData.aiProvider} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, aiProvider: value }))}
+                disabled={!isEditing}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="gemini">🟡 Google Gemini</SelectItem>
+                  <SelectItem value="openai">🟢 OpenAI (GPT-4)</SelectItem>
+                  <SelectItem value="anthropic">🔵 Anthropic Claude</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="aiApiKey">Chave de API</Label>
+              <Input
+                id="aiApiKey"
+                name="aiApiKey"
+                type="password"
+                value={formData.aiApiKey}
+                onChange={handleInputChange}
+                placeholder="AIza... / sk-... / sk-ant-..."
+                disabled={!isEditing}
+              />
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p className="font-medium">Obtenha sua chave de API:</p>
+                <p>🔗 <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Google AI Studio (Gemini)</a></p>
+                <p>🔗 <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">OpenAI Platform</a></p>
+                <p>🔗 <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Anthropic Console (Claude)</a></p>
+              </div>
+            </div>
+
+            {/* AI API Key Loader */}
+            <div className="pt-4 border-t">
+              <AIApiKeyLoader 
+                savedApiKey={formData.aiApiKey}
+                isEditing={isEditing}
+                onLoaded={() => {
+                  toast({
+                    title: 'API carregada',
+                    description: 'A chave de API foi carregada com sucesso para esta sessão.',
+                  });
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Exchange Rate APIs Configuration */}
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>💱 APIs de Taxa de Câmbio</CardTitle>
+                <CardDescription>Configure o provedor de taxa de câmbio...</CardDescription>
+              </div>
+              {formData.exchangeRateApiKey && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900 rounded-full">
+                  <div className="h-2 w-2 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-medium text-green-700 dark:text-green-300">Configurada</span>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Status da Chave */}
+            {formData.exchangeRateApiKey && !isEditing && (
+              <div className="p-3 bg-purple-50 dark:bg-purple-950 border border-purple-200 dark:border-purple-800 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                      {formData.exchangeRateProvider === 'eodhd' && '💎 EODHD Financial APIs'}
+                      {formData.exchangeRateProvider === 'exchangerate' && '💱 ExchangeRate-API'}
+                      {formData.exchangeRateProvider === 'openexchange' && '🌐 Open Exchange Rates'}
+                    </p>
+                    <p className="text-xs text-purple-700 dark:text-purple-300 font-mono">
+                      {formData.exchangeRateApiKey.substring(0, 8)}...{formData.exchangeRateApiKey.slice(-4)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label htmlFor="exchangeRateProvider">Provedor de Taxa de Câmbio</Label>
+              <Select 
+                value={formData.exchangeRateProvider} 
+                onValueChange={(value) => setFormData(prev => ({ ...prev, exchangeRateProvider: value }))}
+                disabled={!isEditing}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="eodhd">💎 EODHD (Atual)</SelectItem>
+                  <SelectItem value="exchangerate">💱 ExchangeRate-API</SelectItem>
+                  <SelectItem value="openexchange">🌐 Open Exchange Rates</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="exchangeRateApiKey">Chave de API</Label>
+              <Input
+                id="exchangeRateApiKey"
+                name="exchangeRateApiKey"
+                type="password"
+                value={formData.exchangeRateApiKey}
+                onChange={handleInputChange}
+                placeholder="Chave da API"
+                disabled={!isEditing}
+              />
+              <div className="text-xs text-muted-foreground space-y-1">
+                <p className="font-medium">Obtenha sua chave de API:</p>
+                <p>🔗 <a href="https://eodhd.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">EODHD</a> - Financial APIs completas</p>
+                <p>🔗 <a href="https://exchangerate-api.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">ExchangeRate-API</a> - Simples e confiável</p>
+                <p>🔗 <a href="https://openexchangerates.org/" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Open Exchange Rates</a> - 1000 requisições/mês grátis</p>
+              </div>
+            </div>
+
+            {/* Exchange Rate API Key Loader */}
+            <div className="pt-4 border-t">
+              <ExchangeRateApiKeyLoader 
+                savedApiKey={formData.exchangeRateApiKey}
+                isEditing={isEditing}
+                onLoaded={() => {
+                  toast({
+                    title: 'API carregada',
+                    description: 'A chave de API de Taxa de Câmbio foi carregada com sucesso para esta sessão.',
+                  });
+                }}
+              />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Bank APIs Configuration */}
+        <Card className="lg:col-span-2">
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>🏦 APIs de Bancos</CardTitle>
+                <CardDescription>Configure o provedor de banco...</CardDescription>
+              </div>
+              {(formData.wiseApiKey || formData.c6ApiKey) && (
+                <div className="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900 rounded-full">
+                  <div className="h-2 w-2 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></div>
+                  <span className="text-xs font-medium text-green-700 dark:text-green-300">
+                    {[formData.wiseApiKey, formData.c6ApiKey].filter(Boolean).length} configurada(s)
+                  </span>
+                </div>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Coluna 1: Configuração */}
+              <div className="space-y-4">
+                {/* Status das Chaves */}
+                {(formData.wiseApiKey || formData.c6ApiKey) && !isEditing && (
+                  <div className="space-y-2">
+                    {formData.wiseApiKey && (
+                      <div className="p-3 bg-orange-50 dark:bg-orange-950 border border-orange-200 dark:border-orange-800 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-orange-900 dark:text-orange-100">
+                              🌍 Wise (TransferWise)
+                            </p>
+                            <p className="text-xs text-orange-700 dark:text-orange-300 font-mono">
+                              {formData.wiseApiKey.substring(0, 8)}...{formData.wiseApiKey.slice(-4)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    {formData.c6ApiKey && (
+                      <div className="p-3 bg-teal-50 dark:bg-teal-950 border border-teal-200 dark:border-teal-800 rounded-lg">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium text-teal-900 dark:text-teal-100">
+                              🇧🇷 C6 Bank
+                            </p>
+                            <p className="text-xs text-teal-700 dark:text-teal-300 font-mono">
+                              {formData.c6ApiKey.substring(0, 8)}...{formData.c6ApiKey.slice(-4)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label htmlFor="wiseApiKey">🌍 Wise (TransferWise)</Label>
+                  <Input
+                    id="wiseApiKey"
+                    name="wiseApiKey"
+                    type="password"
+                    value={formData.wiseApiKey}
+                    onChange={handleInputChange}
+                    placeholder="wise_..."
+                    disabled={!isEditing}
+                  />
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>🔗 <a href="https://wise.com/developer/api-access" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Wise API Documentation</a></p>
+                    <p>Transferências internacionais e conversão de moedas</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="c6ApiKey">🇧🇷 C6 Bank</Label>
+                  <Input
+                    id="c6ApiKey"
+                    name="c6ApiKey"
+                    type="password"
+                    value={formData.c6ApiKey}
+                    onChange={handleInputChange}
+                    placeholder="c6_..."
+                    disabled={!isEditing}
+                  />
+                  <div className="text-xs text-muted-foreground space-y-1">
+                    <p>🔗 <a href="https://developers.c6bank.com.br/" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">C6 Bank Developers</a></p>
+                    <p>Sincronização de transações do C6 Bank</p>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
+                  <div className="flex items-start gap-2">
+                    <ShieldAlert className="h-5 w-5 text-amber-600 dark:text-amber-400 mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
+                        ⚠️ Segurança Crítica
+                      </p>
+                      <p className="text-xs text-amber-800 dark:text-amber-200">
+                        Estas chaves têm acesso a dados financeiros sensíveis. Apenas o usuário MASTER deve ter acesso a estas configurações. Nunca compartilhe suas chaves de API.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Coluna 2: Carregar Chave */}
+              <div>
+                <BankApiKeyLoader 
+                  savedWiseKey={formData.wiseApiKey}
+                  savedC6Key={formData.c6ApiKey}
+                  isEditing={isEditing}
+                  onLoaded={() => {
+                    toast({
+                      title: 'API carregada',
+                      description: 'As chaves de API bancárias foram carregadas com sucesso para esta sessão.',
+                    });
+                  }}
+                />
+              </div>
+            </div>
           </CardContent>
         </Card>
       </div>

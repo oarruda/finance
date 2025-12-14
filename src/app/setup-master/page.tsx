@@ -31,11 +31,18 @@ export default function SetupMasterPage() {
 
   const checkMaster = async () => {
     try {
-      const response = await fetch('/api/setup-master');
-      const data = await response.json();
-      setHasMaster(data.hasMaster);
+      const { getFirestore, collection, query, where, getDocs, limit } = await import('firebase/firestore');
+      const { firebaseApp } = await import('@/firebase/config');
+      
+      const db = getFirestore(firebaseApp);
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('role', '==', 'master'), limit(1));
+      const snapshot = await getDocs(q);
+      
+      setHasMaster(!snapshot.empty);
     } catch (error) {
       console.error('Erro ao verificar MASTER:', error);
+      setHasMaster(false);
     } finally {
       setChecking(false);
     }
@@ -43,34 +50,57 @@ export default function SetupMasterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (!user) {
+      setResult({ 
+        success: false, 
+        error: 'Você precisa estar logado para configurar o MASTER' 
+      });
+      return;
+    }
+
+    if (user.email !== email.toLowerCase()) {
+      setResult({ 
+        success: false, 
+        error: 'O email informado deve ser o mesmo da conta logada' 
+      });
+      return;
+    }
+
     setLoading(true);
     setResult(null);
 
     try {
-      const response = await fetch('/api/setup-master', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
+      // Importar dinamicamente as funções do Firebase
+      const { getFirestore, doc, setDoc, serverTimestamp } = await import('firebase/firestore');
+      const { firebaseApp } = await import('@/firebase/config');
+      
+      const db = getFirestore(firebaseApp);
+      const userDocRef = doc(db, 'users', user.uid);
+
+      // Atualizar o documento do usuário com role master
+      await setDoc(userDocRef, {
+        role: 'master',
+        email: email.toLowerCase(),
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+
+      setResult({ 
+        success: true, 
+        message: '✅ Usuário configurado como MASTER com sucesso! Recarregue a página para aplicar as permissões.' 
       });
+      setHasMaster(true);
+      
+      // Recarregar após 2 segundos
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setResult({ 
-          success: true, 
-          message: data.message + ' ' + data.instruction 
-        });
-        setHasMaster(true);
-      } else {
-        setResult({ 
-          success: false, 
-          error: data.error || 'Erro ao configurar MASTER' 
-        });
-      }
     } catch (error: any) {
+      console.error('Erro ao configurar MASTER:', error);
       setResult({ 
         success: false, 
-        error: 'Erro de conexão: ' + error.message 
+        error: 'Erro ao configurar: ' + (error.message || 'Erro desconhecido') 
       });
     } finally {
       setLoading(false);

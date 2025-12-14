@@ -7,7 +7,9 @@ import { AddUserDialog } from "@/components/admin/add-user-dialog";
 import { useState } from "react";
 import { usePermissions } from "@/hooks/use-permissions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ShieldAlert, Shield } from "lucide-react";
+import Link from "next/link";
 
 export default function AdminPage() {
     const [refreshKey, setRefreshKey] = useState(0);
@@ -57,7 +59,15 @@ export default function AdminPage() {
                         Gerencie funções e permissões dos usuários do sistema.
                     </p>
                 </div>
-                <AddUserDialog onUserAdded={handleUserAdded} />
+                <div className="flex gap-2">
+                    <Link href="/setup-master">
+                        <Button variant="outline">
+                            <Shield className="mr-2 h-4 w-4" />
+                            Setup Master
+                        </Button>
+                    </Link>
+                    <AddUserDialog onUserAdded={handleUserAdded} />
+                </div>
             </div>
 
             {/* Stats Cards */}

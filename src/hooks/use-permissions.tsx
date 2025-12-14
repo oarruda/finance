@@ -33,19 +33,29 @@ export function usePermissions(): Permissions & { isLoading: boolean; userRole: 
       if (user && firestore) {
         try {
           const userDoc = await getDoc(doc(firestore, 'users', user.uid));
+          console.log('🔍 Verificando permissões do usuário:', {
+            uid: user.uid,
+            email: user.email,
+            docExists: userDoc.exists(),
+          });
+          
           if (userDoc.exists()) {
             const userData = userDoc.data() as User;
-            setUserRole(userData.role || 'viewer');
+            const role = userData.role || 'viewer';
+            console.log('✅ Role encontrado:', role, 'userData:', userData);
+            setUserRole(role);
           } else {
+            console.warn('⚠️ Documento do usuário não existe no Firestore');
             setUserRole('viewer');
           }
         } catch (error) {
-          console.error('Erro ao buscar role do usuário:', error);
+          console.error('❌ Erro ao buscar role do usuário:', error);
           setUserRole('viewer');
         } finally {
           setIsLoading(false);
         }
       } else {
+        console.log('⏳ Aguardando user/firestore:', { hasUser: !!user, hasFirestore: !!firestore });
         setUserRole(null);
         setIsLoading(false);
       }
