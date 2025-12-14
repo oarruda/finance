@@ -131,15 +131,16 @@ export function RichTextEditor({
           ))}
         </div>
         <div className="flex flex-wrap gap-1 border-l pl-2 ml-2">
+          <span className="text-xs text-muted-foreground px-2 flex items-center">Variáveis:</span>
           {variables.map((variable, index) => (
             <Button
               key={index}
               type="button"
-              variant="outline"
+              variant="secondary"
               size="sm"
               disabled={disabled}
               onClick={() => insertVariable(variable.value)}
-              className="h-8 px-2 text-xs"
+              className="h-8 px-3 text-xs font-medium"
               title={`Inserir ${variable.label}`}
             >
               {variable.label}
