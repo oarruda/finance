@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { useUser, useFirebase } from '@/firebase';
 import { Loader2, ArrowLeft, Eye } from 'lucide-react';
 import * as React from 'react';
@@ -21,6 +23,7 @@ interface EmailTemplate {
   textColor: string;
   fontFamily: string;
   headerTitle: string;
+  bodyText: string;
   footerText: string;
   companyName: string;
   buttonColor: string;
@@ -45,6 +48,7 @@ export default function EmailTemplatesPage() {
     textColor: '#333333',
     fontFamily: 'Arial, sans-serif',
     headerTitle: '🎉 Bem-vindo ao Sistema Financeiro',
+    bodyText: 'Olá {nome},\n\nUma conta foi criada para você no sistema de gestão financeira. Abaixo estão suas credenciais de acesso:\n\nEmail: {email}\nSenha Temporária: {senha}\n\n⚠️ Importante: Esta é uma senha temporária. Por motivos de segurança, recomendamos que você altere sua senha após o primeiro acesso.\n\nSe você tiver alguma dúvida ou precisar de ajuda, entre em contato com o administrador do sistema.',
     footerText: 'Este é um email automático. Por favor, não responda a esta mensagem.',
     companyName: 'Sistema Financeiro',
     buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -58,6 +62,7 @@ export default function EmailTemplatesPage() {
     textColor: '#333333',
     fontFamily: 'Arial, sans-serif',
     headerTitle: '🔐 Nova Senha Temporária',
+    bodyText: 'Olá {nome},\n\nUma nova senha temporária foi gerada para sua conta. Abaixo estão suas credenciais de acesso:\n\nEmail: {email}\nNova Senha Temporária: {senha}\n\n⚠️ Importante: Esta é uma senha temporária. Por motivos de segurança, recomendamos que você altere sua senha após fazer login.\n\nSe você não solicitou esta alteração ou tiver alguma dúvida, entre em contato com o administrador do sistema imediatamente.',
     footerText: 'Este é um email automático. Por favor, não responda a esta mensagem.',
     companyName: 'Sistema Financeiro',
     buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -142,23 +147,30 @@ export default function EmailTemplatesPage() {
   }
 
   const generatePreviewHTML = (template: EmailTemplate, type: 'welcome' | 'reset') => {
+    // Substituir variáveis no bodyText com valores de exemplo
+    const previewBody = template.bodyText
+      .replace(/{nome}/g, 'João Silva')
+      .replace(/{email}/g, 'joao.silva@exemplo.com')
+      .replace(/{senha}/g, '********')
+      .replace(/{link}/g, '#')
+      .replace(/\n/g, '<br>');
+
     return `
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=${template.fontFamily.replace(/ /g, '+')}:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
       body { font-family: ${template.fontFamily}; line-height: 1.6; color: ${template.textColor}; background-color: ${template.backgroundColor}; margin: 0; padding: 0; }
       .container { max-width: 600px; margin: 20px auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
       .header { background: linear-gradient(135deg, ${template.primaryColor} 0%, ${template.secondaryColor} 100%); color: white; padding: 30px; text-align: center; }
       .header h1 { margin: 0; font-size: 28px; }
       .content { padding: 30px; }
-      .credentials { background: #f8f9fa; border-left: 4px solid ${template.primaryColor}; padding: 15px; margin: 20px 0; border-radius: 4px; }
-      .credentials p { margin: 10px 0; }
-      .credentials strong { color: ${template.primaryColor}; font-weight: 600; }
       .button { display: inline-block; padding: 12px 30px; background: ${template.buttonColor}; color: ${template.buttonTextColor}; text-decoration: none; border-radius: 6px; margin: 20px 0; font-weight: 600; }
       .footer { background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #e9ecef; }
-      .warning { background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px; }
     </style>
   </head>
   <body>
@@ -167,25 +179,10 @@ export default function EmailTemplatesPage() {
         <h1>${template.headerTitle}</h1>
       </div>
       <div class="content">
-        <p>Olá <strong>[Nome do Usuário]</strong>,</p>
-        <p>${type === 'welcome' ? 'Uma conta foi criada para você no sistema de gestão financeira. Abaixo estão suas credenciais de acesso:' : 'Uma nova senha temporária foi gerada para sua conta. Abaixo estão suas credenciais de acesso:'}</p>
-        
-        <div class="credentials">
-          <p><strong>Email:</strong> usuario@exemplo.com</p>
-          <p><strong>${type === 'welcome' ? 'Senha Temporária' : 'Nova Senha Temporária'}:</strong> ********</p>
-        </div>
-
-        <div class="warning">
-          <p>⚠️ <strong>Importante:</strong> Esta é uma senha temporária. Por motivos de segurança, recomendamos que você altere sua senha após ${type === 'welcome' ? 'o primeiro acesso' : 'fazer login'}.</p>
-        </div>
-
+        <p>${previewBody}</p>
         <div style="text-align: center;">
           <a href="#" class="button">Acessar Sistema</a>
         </div>
-
-        <p style="margin-top: 30px; font-size: 14px; color: #666;">
-          ${type === 'welcome' ? 'Se você tiver alguma dúvida ou precisar de ajuda, entre em contato com o administrador do sistema.' : 'Se você não solicitou esta alteração ou tiver alguma dúvida, entre em contato com o administrador do sistema imediatamente.'}
-        </p>
       </div>
       <div class="footer">
         <p>${template.footerText}</p>
@@ -323,13 +320,32 @@ export default function EmailTemplatesPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="welcome-fontFamily">Fonte</Label>
-                <Input
-                  id="welcome-fontFamily"
+                <Select
                   value={welcomeTemplate.fontFamily}
-                  onChange={(e) => setWelcomeTemplate({ ...welcomeTemplate, fontFamily: e.target.value })}
+                  onValueChange={(value) => setWelcomeTemplate({ ...welcomeTemplate, fontFamily: value })}
                   disabled={!isEditing}
-                  placeholder="Arial, sans-serif"
-                />
+                >
+                  <SelectTrigger id="welcome-fontFamily">
+                    <SelectValue placeholder="Selecione uma fonte" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Arial, sans-serif">Arial</SelectItem>
+                    <SelectItem value="Roboto, sans-serif">Roboto</SelectItem>
+                    <SelectItem value="Open Sans, sans-serif">Open Sans</SelectItem>
+                    <SelectItem value="Lato, sans-serif">Lato</SelectItem>
+                    <SelectItem value="Montserrat, sans-serif">Montserrat</SelectItem>
+                    <SelectItem value="Poppins, sans-serif">Poppins</SelectItem>
+                    <SelectItem value="Inter, sans-serif">Inter</SelectItem>
+                    <SelectItem value="Nunito, sans-serif">Nunito</SelectItem>
+                    <SelectItem value="Raleway, sans-serif">Raleway</SelectItem>
+                    <SelectItem value="Ubuntu, sans-serif">Ubuntu</SelectItem>
+                    <SelectItem value="PT Sans, sans-serif">PT Sans</SelectItem>
+                    <SelectItem value="Source Sans Pro, sans-serif">Source Sans Pro</SelectItem>
+                    <SelectItem value="Merriweather, serif">Merriweather</SelectItem>
+                    <SelectItem value="Playfair Display, serif">Playfair Display</SelectItem>
+                    <SelectItem value="Georgia, serif">Georgia</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -351,6 +367,20 @@ export default function EmailTemplatesPage() {
                   onChange={(e) => setWelcomeTemplate({ ...welcomeTemplate, companyName: e.target.value })}
                   disabled={!isEditing}
                   placeholder="Sistema Financeiro"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="welcome-bodyText">Texto do Email</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Variáveis disponíveis: {'{nome}'}, {'{email}'}, {'{senha}'}, {'{link}'}
+                </p>
+                <RichTextEditor
+                  value={welcomeTemplate.bodyText}
+                  onChange={(value) => setWelcomeTemplate({ ...welcomeTemplate, bodyText: value })}
+                  disabled={!isEditing}
+                  placeholder="Digite o texto do email..."
+                  rows={8}
                 />
               </div>
 
@@ -477,13 +507,32 @@ export default function EmailTemplatesPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="reset-fontFamily">Fonte</Label>
-                <Input
-                  id="reset-fontFamily"
+                <Select
                   value={resetTemplate.fontFamily}
-                  onChange={(e) => setResetTemplate({ ...resetTemplate, fontFamily: e.target.value })}
+                  onValueChange={(value) => setResetTemplate({ ...resetTemplate, fontFamily: value })}
                   disabled={!isEditing}
-                  placeholder="Arial, sans-serif"
-                />
+                >
+                  <SelectTrigger id="reset-fontFamily">
+                    <SelectValue placeholder="Selecione uma fonte" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Arial, sans-serif">Arial</SelectItem>
+                    <SelectItem value="Roboto, sans-serif">Roboto</SelectItem>
+                    <SelectItem value="Open Sans, sans-serif">Open Sans</SelectItem>
+                    <SelectItem value="Lato, sans-serif">Lato</SelectItem>
+                    <SelectItem value="Montserrat, sans-serif">Montserrat</SelectItem>
+                    <SelectItem value="Poppins, sans-serif">Poppins</SelectItem>
+                    <SelectItem value="Inter, sans-serif">Inter</SelectItem>
+                    <SelectItem value="Nunito, sans-serif">Nunito</SelectItem>
+                    <SelectItem value="Raleway, sans-serif">Raleway</SelectItem>
+                    <SelectItem value="Ubuntu, sans-serif">Ubuntu</SelectItem>
+                    <SelectItem value="PT Sans, sans-serif">PT Sans</SelectItem>
+                    <SelectItem value="Source Sans Pro, sans-serif">Source Sans Pro</SelectItem>
+                    <SelectItem value="Merriweather, serif">Merriweather</SelectItem>
+                    <SelectItem value="Playfair Display, serif">Playfair Display</SelectItem>
+                    <SelectItem value="Georgia, serif">Georgia</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="space-y-2">
@@ -505,6 +554,20 @@ export default function EmailTemplatesPage() {
                   onChange={(e) => setResetTemplate({ ...resetTemplate, companyName: e.target.value })}
                   disabled={!isEditing}
                   placeholder="Sistema Financeiro"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="reset-bodyText">Texto do Email</Label>
+                <p className="text-xs text-muted-foreground mb-2">
+                  Variáveis disponíveis: {'{nome}'}, {'{email}'}, {'{senha}'}, {'{link}'}
+                </p>
+                <RichTextEditor
+                  value={resetTemplate.bodyText}
+                  onChange={(value) => setResetTemplate({ ...resetTemplate, bodyText: value })}
+                  disabled={!isEditing}
+                  placeholder="Digite o texto do email..."
+                  rows={8}
                 />
               </div>
 
