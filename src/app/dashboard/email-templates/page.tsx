@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useUser, useFirebase } from '@/firebase';
 import { Loader2, ArrowLeft, Eye } from 'lucide-react';
 import * as React from 'react';
@@ -35,6 +36,7 @@ export default function EmailTemplatesPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [showPreview, setShowPreview] = React.useState(false);
+  const [previewTab, setPreviewTab] = React.useState<'welcome' | 'reset'>('welcome');
 
   const [welcomeTemplate, setWelcomeTemplate] = React.useState<EmailTemplate>({
     primaryColor: '#667eea',
@@ -365,7 +367,10 @@ export default function EmailTemplatesPage() {
 
               <Button 
                 variant="outline" 
-                onClick={() => setShowPreview(true)}
+                onClick={() => {
+                  setPreviewTab('welcome');
+                  setShowPreview(true);
+                }}
                 className="w-full"
               >
                 <Eye className="mr-2 h-4 w-4" />
@@ -516,7 +521,10 @@ export default function EmailTemplatesPage() {
 
               <Button 
                 variant="outline" 
-                onClick={() => setShowPreview(true)}
+                onClick={() => {
+                  setPreviewTab('reset');
+                  setShowPreview(true);
+                }}
                 className="w-full"
               >
                 <Eye className="mr-2 h-4 w-4" />
@@ -526,6 +534,27 @@ export default function EmailTemplatesPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Dialog de Preview */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              Preview do Email - {previewTab === 'welcome' ? 'Boas-vindas' : 'Reset de Senha'}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="border rounded-lg overflow-hidden">
+            <iframe
+              srcDoc={generatePreviewHTML(
+                previewTab === 'welcome' ? welcomeTemplate : resetTemplate,
+                previewTab
+              )}
+              className="w-full h-[600px] border-0"
+              title="Email Preview"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {isEditing && (
         <div className="flex justify-end gap-2">
