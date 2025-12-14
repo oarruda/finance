@@ -80,14 +80,40 @@ export async function POST(request: NextRequest) {
 
     console.log('Gerando nova senha para:', email);
 
-    // Atualizar senha do usuário usando a API do Firebase Admin
+    // Buscar usuário pelo email primeiro
+    const getUserResponse = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: [email] }),
+      }
+    );
+
+    if (!getUserResponse.ok) {
+      console.error('Erro ao buscar usuário');
+      return NextResponse.json({ 
+        error: 'Usuário não encontrado no Firebase Auth'
+      }, { status: 404 });
+    }
+
+    const getUserData = await getUserResponse.json();
+    const firebaseUserId = getUserData.users?.[0]?.localId;
+
+    if (!firebaseUserId) {
+      return NextResponse.json({ 
+        error: 'ID do usuário não encontrado'
+      }, { status: 404 });
+    }
+
+    // Atualizar senha do usuário
     const updatePasswordResponse = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${firebaseConfig.apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          localId: userId,
+          localId: firebaseUserId,
           password: newPassword,
         }),
       }
