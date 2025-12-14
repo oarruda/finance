@@ -5,7 +5,7 @@ import { firebaseConfig } from '@/firebase/config';
 
 // Inicializar Resend com a API key
 // Você precisa adicionar RESEND_API_KEY no arquivo .env.local
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = new Resend(process.env.RESEND_API_KEY || 'dummy_key_for_build');
 
 export const dynamic = 'force-static';
 
