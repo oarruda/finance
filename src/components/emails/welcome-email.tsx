@@ -7,12 +7,13 @@ interface WelcomeEmailProps {
   loginUrl: string;
 }
 
-export const WelcomeEmail: React.FC<WelcomeEmailProps> = ({
+export default function WelcomeEmail({
   name,
   email,
   password,
   loginUrl,
-}) => (
+}: WelcomeEmailProps) {
+  return (
   <html>
     <head>
       <style>{`
@@ -131,6 +132,5 @@ export const WelcomeEmail: React.FC<WelcomeEmailProps> = ({
       </div>
     </body>
   </html>
-);
-
-export default WelcomeEmail;
+  );
+}
