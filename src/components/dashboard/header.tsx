@@ -15,6 +15,7 @@ import { Skeleton } from '../ui/skeleton';
 import * as React from 'react';
 import { useLanguage } from '@/lib/i18n';
 import { UserAvatar } from '@/components/ui/avatar-picker';
+import { ThemeToggle } from '@/components/ui/theme-toggle';
 
 export default function Header() {
   const { t } = useLanguage();
@@ -220,8 +221,9 @@ export default function Header() {
         </div>
       </div>
       
-      {/* Avatar with Dropdown Menu */}
-      <div className="flex items-center">
+      {/* Theme Toggle and Avatar with Dropdown Menu */}
+      <div className="flex items-center gap-2">
+        <ThemeToggle />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="h-8 w-8 rounded-full p-0">
