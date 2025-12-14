@@ -83,23 +83,69 @@ export function RichTextEditor({
     },
   ];
 
+  const insertVariable = (variable: string) => {
+    if (!textareaRef.current || disabled) return;
+
+    const textarea = textareaRef.current;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+
+    const newValue =
+      value.substring(0, start) +
+      variable +
+      value.substring(end);
+
+    onChange(newValue);
+
+    setTimeout(() => {
+      textarea.focus();
+      const newCursorPos = start + variable.length;
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
+    }, 0);
+  };
+
+  const variables = [
+    { label: 'Nome', value: '{nome}' },
+    { label: 'Email', value: '{email}' },
+    { label: 'Senha', value: '{senha}' },
+    { label: 'Link', value: '{link}' },
+  ];
+
   return (
     <div className={cn('space-y-2', className)}>
       <div className="flex flex-wrap gap-1 p-2 border rounded-t-md bg-muted/50">
-        {formatButtons.map((button, index) => (
-          <Button
-            key={index}
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={disabled}
-            onClick={button.action}
-            className="h-8 w-8 p-0"
-            title={button.label}
-          >
-            <button.icon className="h-4 w-4" />
-          </Button>
-        ))}
+        <div className="flex flex-wrap gap-1 flex-1">
+          {formatButtons.map((button, index) => (
+            <Button
+              key={index}
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={disabled}
+              onClick={button.action}
+              className="h-8 w-8 p-0"
+              title={button.label}
+            >
+              <button.icon className="h-4 w-4" />
+            </Button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-1 border-l pl-2 ml-2">
+          {variables.map((variable, index) => (
+            <Button
+              key={index}
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={disabled}
+              onClick={() => insertVariable(variable.value)}
+              className="h-8 px-2 text-xs"
+              title={`Inserir ${variable.label}`}
+            >
+              {variable.label}
+            </Button>
+          ))}
+        </div>
       </div>
       <textarea
         ref={textareaRef}

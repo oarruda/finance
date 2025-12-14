@@ -151,7 +151,7 @@ export default function EmailTemplatesPage() {
     const previewBody = template.bodyText
       .replace(/{nome}/g, 'João Silva')
       .replace(/{email}/g, 'joao.silva@exemplo.com')
-      .replace(/{senha}/g, '********')
+      .replace(/{senha}/g, 'Temp@2024Pass')
       .replace(/{link}/g, '#')
       .replace(/\n/g, '<br>');
 
@@ -372,9 +372,6 @@ export default function EmailTemplatesPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="welcome-bodyText">Texto do Email</Label>
-                <p className="text-xs text-muted-foreground mb-2">
-                  Variáveis disponíveis: {'{nome}'}, {'{email}'}, {'{senha}'}, {'{link}'}
-                </p>
                 <RichTextEditor
                   value={welcomeTemplate.bodyText}
                   onChange={(value) => setWelcomeTemplate({ ...welcomeTemplate, bodyText: value })}
@@ -559,9 +556,6 @@ export default function EmailTemplatesPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="reset-bodyText">Texto do Email</Label>
-                <p className="text-xs text-muted-foreground mb-2">
-                  Variáveis disponíveis: {'{nome}'}, {'{email}'}, {'{senha}'}, {'{link}'}
-                </p>
                 <RichTextEditor
                   value={resetTemplate.bodyText}
                   onChange={(value) => setResetTemplate({ ...resetTemplate, bodyText: value })}
