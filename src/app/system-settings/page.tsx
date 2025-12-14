@@ -591,7 +591,7 @@ export default function SystemSettingsPage() {
                 <CardTitle>📧 API de Email (Resend)</CardTitle>
                 <CardDescription>Configure a chave de API do Resend para envio de emails</CardDescription>
               </div>
-              {formData.resendApiKey && (
+              {formData.resendApiKey && formData.resendFromEmail && formData.appUrl && (
                 <div className="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900 rounded-full">
                   <div className="h-2 w-2 bg-green-600 dark:bg-green-400 rounded-full animate-pulse"></div>
                   <span className="text-xs font-medium text-green-700 dark:text-green-300">Configurada</span>
