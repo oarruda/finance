@@ -27,7 +27,7 @@ import {
 } from '../ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '../ui/badge';
-import { Loader2, Trash2, Eye, Mail, Ban, CheckCircle } from 'lucide-react';
+import { Loader2, Trash2, Eye, Mail, Ban, CheckCircle, Pencil } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, query, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Skeleton } from '../ui/skeleton';
@@ -48,7 +48,10 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from '../ui/dialog';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 
 export function UserManagementTable() {
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
@@ -56,6 +59,9 @@ export function UserManagementTable() {
   const [resendingEmailId, setResendingEmailId] = React.useState<string | null>(null);
   const [togglingStatusId, setTogglingStatusId] = React.useState<string | null>(null);
   const [viewingUser, setViewingUser] = React.useState<User | null>(null);
+  const [editingUser, setEditingUser] = React.useState<User | null>(null);
+  const [editFormData, setEditFormData] = React.useState<Partial<User>>({});
+  const [isSavingEdit, setIsSavingEdit] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
   const { toast } = useToast();
@@ -252,6 +258,68 @@ export function UserManagementTable() {
     }
   };
 
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setEditFormData({
+      name: user.name || '',
+      lastName: user.lastName || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      cpf: user.cpf || '',
+      street: user.street || '',
+      number: user.number || '',
+      complement: user.complement || '',
+      neighborhood: user.neighborhood || '',
+      city: user.city || '',
+      state: user.state || '',
+      zipCode: user.zipCode || '',
+      timezone: user.timezone || '',
+      defaultCurrency: user.defaultCurrency || '',
+      defaultLanguage: user.defaultLanguage || '',
+    });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingUser) return;
+
+    setIsSavingEdit(true);
+    try {
+      const userRef = doc(firestore, 'users', editingUser.id);
+      const updateData = {
+        ...editFormData,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await updateDoc(userRef, updateData);
+
+      // Atualizar lista local
+      if (setData && users) {
+        setData(
+          users.map(u =>
+            u.id === editingUser.id ? { ...u, ...updateData } : u
+          )
+        );
+      }
+
+      toast({
+        title: 'Sucesso',
+        description: 'Dados do usuário atualizados com sucesso.',
+      });
+
+      setEditingUser(null);
+      setEditFormData({});
+    } catch (error: any) {
+      console.error('Erro ao atualizar usuário:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao atualizar usuário',
+        description: error.message || 'Falha ao atualizar dados do usuário.',
+      });
+    } finally {
+      setIsSavingEdit(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -358,6 +426,14 @@ export function UserManagementTable() {
                       title="Ver detalhes"
                     >
                       <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEditUser(user)}
+                      title="Editar usuário"
+                    >
+                      <Pencil className="h-4 w-4 text-primary" />
                     </Button>
                     <Button
                       variant="ghost"
@@ -516,6 +592,207 @@ export function UserManagementTable() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Edição de Usuário */}
+      <Dialog open={!!editingUser} onOpenChange={() => {
+        setEditingUser(null);
+        setEditFormData({});
+      }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>
+              Edite os dados do usuário {editingUser?.name || editingUser?.email}
+            </DialogDescription>
+          </DialogHeader>
+          {editingUser && (
+            <div className="space-y-4">
+              {/* Dados Pessoais */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground">Dados Pessoais</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nome</Label>
+                    <Input
+                      id="name"
+                      value={editFormData.name || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                      placeholder="Nome"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Sobrenome</Label>
+                    <Input
+                      id="lastName"
+                      value={editFormData.lastName || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}
+                      placeholder="Sobrenome"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={editFormData.email || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                      placeholder="email@exemplo.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Telefone</Label>
+                    <Input
+                      id="phone"
+                      value={editFormData.phone || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                      placeholder="(00) 00000-0000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="cpf">CPF</Label>
+                    <Input
+                      id="cpf"
+                      value={editFormData.cpf || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, cpf: e.target.value })}
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Endereço */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground">Endereço</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="street">Rua</Label>
+                    <Input
+                      id="street"
+                      value={editFormData.street || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, street: e.target.value })}
+                      placeholder="Nome da rua"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="number">Número</Label>
+                    <Input
+                      id="number"
+                      value={editFormData.number || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, number: e.target.value })}
+                      placeholder="123"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="complement">Complemento</Label>
+                    <Input
+                      id="complement"
+                      value={editFormData.complement || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, complement: e.target.value })}
+                      placeholder="Apto, Bloco, etc"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="neighborhood">Bairro</Label>
+                    <Input
+                      id="neighborhood"
+                      value={editFormData.neighborhood || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, neighborhood: e.target.value })}
+                      placeholder="Nome do bairro"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="city">Cidade</Label>
+                    <Input
+                      id="city"
+                      value={editFormData.city || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, city: e.target.value })}
+                      placeholder="Nome da cidade"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="state">Estado</Label>
+                    <Input
+                      id="state"
+                      value={editFormData.state || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, state: e.target.value })}
+                      placeholder="UF"
+                      maxLength={2}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="zipCode">CEP</Label>
+                    <Input
+                      id="zipCode"
+                      value={editFormData.zipCode || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, zipCode: e.target.value })}
+                      placeholder="00000-000"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Preferências */}
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold text-muted-foreground">Preferências</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="timezone">Fuso Horário</Label>
+                    <Input
+                      id="timezone"
+                      value={editFormData.timezone || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, timezone: e.target.value })}
+                      placeholder="America/Sao_Paulo"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultCurrency">Moeda Padrão</Label>
+                    <Input
+                      id="defaultCurrency"
+                      value={editFormData.defaultCurrency || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, defaultCurrency: e.target.value })}
+                      placeholder="BRL"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="defaultLanguage">Idioma</Label>
+                    <Input
+                      id="defaultLanguage"
+                      value={editFormData.defaultLanguage || ''}
+                      onChange={(e) => setEditFormData({ ...editFormData, defaultLanguage: e.target.value })}
+                      placeholder="pt-BR"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setEditingUser(null);
+                setEditFormData({});
+              }}
+              disabled={isSavingEdit}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSaveEdit}
+              disabled={isSavingEdit}
+            >
+              {isSavingEdit ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Salvando...
+                </>
+              ) : (
+                'Salvar Alterações'
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </Card>
