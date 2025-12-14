@@ -175,9 +175,13 @@ export function RichTextEditor({
           <label className="text-xs text-muted-foreground mb-1 block">Preview</label>
           <div 
             className={cn(
-              'min-h-[80px] w-full rounded-md border border-input bg-muted/30 px-3 py-2 text-sm overflow-auto',
+              'min-h-[80px] w-full rounded-md border border-input bg-white px-4 py-3 text-sm overflow-auto',
             )}
-            style={{ height: `${rows * 24}px` }}
+            style={{ 
+              height: `${rows * 24}px`,
+              lineHeight: '1.6',
+              fontFamily: 'Arial, sans-serif'
+            }}
             dangerouslySetInnerHTML={{ __html: previewHTML }}
           />
         </div>
