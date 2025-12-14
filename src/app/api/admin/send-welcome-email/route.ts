@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import WelcomeEmail from '@/components/emails/welcome-email';
+import { WelcomeEmail } from '@/components/emails/welcome-email';
 import { firebaseConfig } from '@/firebase/config';
 
 export async function POST(request: NextRequest) {
