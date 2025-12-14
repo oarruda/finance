@@ -8,8 +8,14 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'Controle Financeiro Familiar',
+  title: 'FIN - Controle Financeiro',
   description: 'Um controle financeiro completo para sua família.',
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico', sizes: 'any' }
+    ],
+  },
 };
 
 export default function RootLayout({
