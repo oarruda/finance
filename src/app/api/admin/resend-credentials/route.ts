@@ -89,7 +89,6 @@ export async function POST(request: NextRequest) {
         body: JSON.stringify({
           localId: userId,
           password: newPassword,
-          returnSecureToken: false,
         }),
       }
     );
