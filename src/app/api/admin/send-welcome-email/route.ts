@@ -152,29 +152,11 @@ export async function POST(request: NextRequest) {
       console.log('Usando template padrão (erro ao carregar personalizado):', err);
     }
 
-    // Destacar senha no texto com formatação especial (compatível com email clients)
-    const passwordHighlight = `
-      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 20px 0;">
-        <tr>
-          <td align="center">
-            <table border="0" cellpadding="0" cellspacing="0" style="border: 2px solid ${template.primaryColor}; border-radius: 8px; background-color: #f8f9fa;">
-              <tr>
-                <td style="padding: 20px; text-align: center;">
-                  <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #666666; text-transform: uppercase; letter-spacing: 1px;">SUA SENHA TEMPORÁRIA</p>
-                  <p style="margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 24px; font-weight: bold; color: ${template.primaryColor}; letter-spacing: 2px; padding: 10px; background-color: #ffffff; border-radius: 4px;">${password}</p>
-                  <p style="margin: 10px 0 0 0; font-family: Arial, sans-serif; font-size: 11px; color: #999999;">👆 Copie esta senha para fazer login</p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    `;
-    
+    // Substituir variáveis no texto do template
     const emailBody = template.bodyText
       .replace(/{nome}/g, `<strong style="color: ${template.primaryColor};">${name}</strong>`)
       .replace(/{email}/g, `<strong style="color: ${template.textColor};">${email}</strong>`)
-      .replace(/{senha}/g, passwordHighlight)
+      .replace(/{senha}/g, `<strong style="font-family: 'Courier New', Courier, monospace; font-size: 18px; color: ${template.primaryColor}; letter-spacing: 1px;">${password}</strong>`)
       .replace(/{link}/g, appUrl)
       .replace(/\n/g, '<br>');
 

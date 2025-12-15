@@ -217,5 +217,31 @@ service cloud.firestore {
       allow delete: if isMaster();
     }
 
+    /**
+     * @description Viewer roles - read-only privilege level
+     * Masters and admins can read this collection
+     * Only masters can manage viewer roles
+     */
+    match /roles_viewer/{userId} {
+      allow get: if isAdminOrAbove();
+      allow list: if isAdminOrAbove();
+      allow create: if isMaster();
+      allow update: if isMaster();
+      allow delete: if isMaster();
+    }
+
+    /**
+     * @description Email templates for system emails
+     * Masters can manage email templates
+     * Templates are stored per master user with welcome and reset variants
+     */
+    match /emailTemplates/{userId} {
+      allow get: if isMaster();
+      allow list: if isMaster();
+      allow create: if isMaster();
+      allow update: if isMaster();
+      allow delete: if isMaster();
+    }
+
   }
 }

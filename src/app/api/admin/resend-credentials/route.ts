@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { firebaseConfig } from '@/firebase/config';
+import { getServerSdks } from '@/firebase/server';
 import { Resend } from 'resend';
 
 export async function POST(request: NextRequest) {
   try {
+    // Inicializar Firebase Admin
+    const { auth, firestore: db } = getServerSdks();
+
     // Obter token do header para verificar autenticação
     const authHeader = request.headers.get('authorization');
     
@@ -13,22 +17,9 @@ export async function POST(request: NextRequest) {
 
     const token = authHeader.split('Bearer ')[1];
     
-    // Verificar autenticação via REST API
-    const verifyResponse = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: token }),
-      }
-    );
-
-    if (!verifyResponse.ok) {
-      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
-    }
-
-    const verifyData = await verifyResponse.json();
-    const currentUserId = verifyData.users[0].localId;
+    // Verificar autenticação usando Admin SDK
+    const decodedToken = await auth.verifyIdToken(token);
+    const currentUserId = decodedToken.uid;
 
     // Obter dados do body
     const body = await request.json();
@@ -40,36 +31,36 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Buscar dados do usuário usando a REST API do Firestore
-    const userFirestoreUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}`;
-    
-    const userResponse = await fetch(userFirestoreUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    console.log('========================================');
+    console.log('🔐 Reenviando credenciais');
+    console.log('User ID:', userId);
+    console.log('========================================');
 
-    if (!userResponse.ok) {
-      console.error('Erro ao buscar usuário no Firestore');
+    // Buscar dados do usuário no Firestore usando Admin SDK
+    const userDoc = await db.collection('users').doc(userId).get();
+
+    if (!userDoc.exists) {
+      console.error('❌ Usuário não encontrado no Firestore');
       return NextResponse.json({ 
         error: 'Usuário não encontrado' 
       }, { status: 404 });
     }
 
-    const userDoc = await userResponse.json();
-    const userData = userDoc.fields;
+    const userData = userDoc.data();
     
-    // Extrair valores dos campos Firestore
-    const firstName = userData?.firstName?.stringValue || '';
-    const lastName = userData?.lastName?.stringValue || '';
-    const name = firstName && lastName ? `${firstName} ${lastName}` : (userData?.name?.stringValue || userData?.email?.stringValue || '');
-    const email = userData?.email?.stringValue || '';
+    const firstName = userData?.firstName || '';
+    const lastName = userData?.lastName || '';
+    const name = firstName && lastName ? `${firstName} ${lastName}` : (userData?.name || userData?.email || '');
+    const email = userData?.email || '';
 
     if (!email) {
+      console.error('❌ Email do usuário não encontrado');
       return NextResponse.json({ 
         error: 'Email do usuário não encontrado' 
       }, { status: 404 });
     }
+
+    console.log('✅ Usuário encontrado:', email);
 
     // Gerar nova senha temporária
     const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
@@ -78,156 +69,67 @@ export async function POST(request: NextRequest) {
       newPassword += chars.charAt(Math.floor(Math.random() * chars.length));
     }
 
-    console.log('Gerando nova senha para:', email);
+    console.log('🔑 Gerando nova senha temporária');
 
-    // Buscar usuário pelo email primeiro
-    const getUserResponse = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: [email] }),
-      }
-    );
-
-    const getUserData = await getUserResponse.json();
-    console.log('Resposta da busca de usuário:', getUserData);
-
-    let firebaseUserId;
-
-    // Verificar resposta da busca
-    if (getUserResponse.ok && getUserData.users && getUserData.users.length > 0) {
-      // Usuário encontrado no Auth
-      firebaseUserId = getUserData.users[0].localId;
-      console.log('Firebase User ID encontrado:', firebaseUserId);
-    } else {
-      // Usuário não encontrado no Auth, tentar criar
-      console.log('Usuário não encontrado no Firebase Auth, tentando criar:', email);
+    // Verificar se usuário existe no Auth e atualizar senha usando Admin SDK
+    try {
+      console.log('Verificando usuário no Auth...');
+      let userRecord;
       
-      const createUserResponse = await fetch(
-        `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${firebaseConfig.apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email,
+      try {
+        // Tentar buscar usuário no Auth pelo ID do Firestore
+        userRecord = await auth.getUser(userId);
+        console.log('✅ Usuário encontrado no Auth');
+      } catch (notFoundError: any) {
+        // Usuário não existe no Auth, criar com mesmo ID do Firestore
+        console.log('⚠️  Usuário não existe no Auth, criando...');
+        try {
+          userRecord = await auth.createUser({
+            uid: userId,
+            email: email,
             password: newPassword,
             displayName: name,
-            returnSecureToken: true,
-          }),
-        }
-      );
-
-      const createUserData = await createUserResponse.json();
-
-      if (!createUserResponse.ok) {
-        console.error('Erro ao criar usuário:', createUserData);
-        
-        // Se email já existe, buscar o usuário existente
-        if (createUserData.error?.message === 'EMAIL_EXISTS') {
-          console.log('Email já existe, buscando usuário existente...');
-          
-          const retryGetUser = await fetch(
-            `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ email: [email] }),
-            }
-          );
-          
-          const retryData = await retryGetUser.json();
-          console.log('Resultado da segunda busca:', retryData);
-          
-          if (retryGetUser.ok && retryData.users && retryData.users.length > 0) {
-            firebaseUserId = retryData.users[0].localId;
-            console.log('Usuário encontrado na segunda tentativa:', firebaseUserId);
-          } else {
-            return NextResponse.json({ 
-              error: 'Erro: usuário existe mas não foi possível localizá-lo'
-            }, { status: 500 });
-          }
-        } else {
+          });
+          console.log('✅ Usuário criado no Auth com ID:', userId);
+        } catch (createError: any) {
+          console.error('❌ Erro ao criar usuário no Auth:', createError.message);
           return NextResponse.json({ 
-            error: 'Erro ao criar usuário: ' + (createUserData.error?.message || 'Erro desconhecido')
+            error: 'Erro ao sincronizar usuário com Auth: ' + createError.message
           }, { status: 500 });
         }
-      } else {
-        firebaseUserId = createUserData.localId;
-        console.log('Usuário criado no Auth com ID:', firebaseUserId);
       }
-    }
 
-    if (!firebaseUserId) {
-      return NextResponse.json({ 
-        error: 'Não foi possível obter ID do usuário'
-      }, { status: 500 });
-    }
-    
-    // Atualizar senha do usuário
-    const updatePasswordResponse = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${firebaseConfig.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          localId: firebaseUserId,
-          password: newPassword,
-        }),
-      }
-    );
-
-    if (!updatePasswordResponse.ok) {
-      const errorData = await updatePasswordResponse.json();
-      console.error('Erro ao atualizar senha:', errorData);
-      return NextResponse.json({ 
-        error: 'Erro ao atualizar senha: ' + (errorData.error?.message || 'Erro desconhecido')
-      }, { status: 500 });
-    }
-
-    console.log('Senha definida com sucesso, marcando como temporária...');
-
-    // Marcar senha como temporária no Firestore
-    const updateUserUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}?updateMask.fieldPaths=isTemporaryPassword`;
-    
-    await fetch(updateUserUrl, {
-      method: 'PATCH',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        fields: {
-          isTemporaryPassword: { booleanValue: true },
-        },
-      }),
-    });
-
-    console.log('Senha marcada como temporária, enviando email...');
-
-    // Buscar configurações do Resend do usuário MASTER
-    const masterSettingsUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${currentUserId}`;
-    
-    let resendApiKey = process.env.RESEND_API_KEY || '';
-    let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
-    let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
-
-    try {
-      const masterResponse = await fetch(masterSettingsUrl, {
-        headers: { 'Authorization': `Bearer ${token}` },
+      // Atualizar senha do usuário
+      console.log('Atualizando senha...');
+      await auth.updateUser(userId, {
+        password: newPassword,
       });
+      console.log('✅ Senha atualizada com sucesso');
 
-      if (masterResponse.ok) {
-        const masterDoc = await masterResponse.json();
-        const fields = masterDoc.fields || {};
-        
-        if (fields.resendApiKey?.stringValue) resendApiKey = fields.resendApiKey.stringValue;
-        if (fields.resendFromEmail?.stringValue) resendFromEmail = fields.resendFromEmail.stringValue;
-        if (fields.appUrl?.stringValue) appUrl = fields.appUrl.stringValue;
-      }
-    } catch (err) {
-      console.error('Erro ao buscar configurações do Resend:', err);
+    } catch (error: any) {
+      console.error('❌ Erro ao gerenciar usuário no Auth:', error.message);
+      return NextResponse.json({ 
+        error: 'Erro ao atualizar senha: ' + error.message
+      }, { status: 500 });
     }
+
+    console.log('Marcando senha como temporária no Firestore...');
+
+    // Marcar senha como temporária no Firestore usando Admin SDK
+    await db.collection('users').doc(userId).update({
+      isTemporaryPassword: true,
+    });
+    console.log('✅ Senha marcada como temporária');
+
+    console.log('Buscando configurações de email...');
+
+    // Buscar configurações do Resend do usuário MASTER usando Admin SDK
+    const masterDoc = await db.collection('users').doc(currentUserId).get();
+    const masterData = masterDoc.data();
+    
+    let resendApiKey = masterData?.resendApiKey || process.env.RESEND_API_KEY || '';
+    let resendFromEmail = masterData?.resendFromEmail || process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
+    let appUrl = masterData?.appUrl || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
     if (!resendApiKey) {
       return NextResponse.json({ 
@@ -238,7 +140,7 @@ export async function POST(request: NextRequest) {
     // Inicializar Resend
     const resend = new Resend(resendApiKey);
 
-    // Buscar template personalizado do Firestore
+    // Buscar template personalizado do Firestore usando Admin SDK
     let template = {
       primaryColor: '#667eea',
       secondaryColor: '#764ba2',
@@ -254,58 +156,37 @@ export async function POST(request: NextRequest) {
     };
 
     try {
-      const templateUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/emailTemplates/${currentUserId}`;
-      const templateResponse = await fetch(templateUrl, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
-
-      if (templateResponse.ok) {
-        const templateDoc = await templateResponse.json();
-        const fields = templateDoc.fields || {};
+      console.log('Buscando template de email...');
+      const templateDoc = await db.collection('emailTemplates').doc(currentUserId).get();
+      
+      if (templateDoc.exists) {
+        const templateData = templateDoc.data();
+        const resetTemplate = templateData?.reset;
         
-        if (fields.reset?.mapValue?.fields) {
-          const resetFields = fields.reset.mapValue.fields;
-          if (resetFields.primaryColor?.stringValue) template.primaryColor = resetFields.primaryColor.stringValue;
-          if (resetFields.secondaryColor?.stringValue) template.secondaryColor = resetFields.secondaryColor.stringValue;
-          if (resetFields.backgroundColor?.stringValue) template.backgroundColor = resetFields.backgroundColor.stringValue;
-          if (resetFields.textColor?.stringValue) template.textColor = resetFields.textColor.stringValue;
-          if (resetFields.fontFamily?.stringValue) template.fontFamily = resetFields.fontFamily.stringValue;
-          if (resetFields.headerTitle?.stringValue) template.headerTitle = resetFields.headerTitle.stringValue;
-          if (resetFields.bodyText?.stringValue) template.bodyText = resetFields.bodyText.stringValue;
-          if (resetFields.footerText?.stringValue) template.footerText = resetFields.footerText.stringValue;
-          if (resetFields.companyName?.stringValue) template.companyName = resetFields.companyName.stringValue;
-          if (resetFields.buttonColor?.stringValue) template.buttonColor = resetFields.buttonColor.stringValue;
-          if (resetFields.buttonTextColor?.stringValue) template.buttonTextColor = resetFields.buttonTextColor.stringValue;
+        if (resetTemplate) {
+          if (resetTemplate.primaryColor) template.primaryColor = resetTemplate.primaryColor;
+          if (resetTemplate.secondaryColor) template.secondaryColor = resetTemplate.secondaryColor;
+          if (resetTemplate.backgroundColor) template.backgroundColor = resetTemplate.backgroundColor;
+          if (resetTemplate.textColor) template.textColor = resetTemplate.textColor;
+          if (resetTemplate.fontFamily) template.fontFamily = resetTemplate.fontFamily;
+          if (resetTemplate.headerTitle) template.headerTitle = resetTemplate.headerTitle;
+          if (resetTemplate.bodyText) template.bodyText = resetTemplate.bodyText;
+          if (resetTemplate.footerText) template.footerText = resetTemplate.footerText;
+          if (resetTemplate.companyName) template.companyName = resetTemplate.companyName;
+          if (resetTemplate.buttonColor) template.buttonColor = resetTemplate.buttonColor;
+          if (resetTemplate.buttonTextColor) template.buttonTextColor = resetTemplate.buttonTextColor;
           console.log('✅ Template personalizado de reset carregado');
         }
       }
     } catch (err) {
-      console.log('Usando template padrão (erro ao carregar personalizado):', err);
+      console.log('⚠️  Usando template padrão (erro ao carregar personalizado):', err);
     }
 
-    // Destacar senha no texto com formatação especial (compatível com email clients)
-    const passwordHighlight = `
-      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 20px 0;">
-        <tr>
-          <td align="center">
-            <table border="0" cellpadding="0" cellspacing="0" style="border: 2px solid ${template.primaryColor}; border-radius: 8px; background-color: #f8f9fa;">
-              <tr>
-                <td style="padding: 20px; text-align: center;">
-                  <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #666666; text-transform: uppercase; letter-spacing: 1px;">SUA NOVA SENHA TEMPORÁRIA</p>
-                  <p style="margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 24px; font-weight: bold; color: ${template.primaryColor}; letter-spacing: 2px; padding: 10px; background-color: #ffffff; border-radius: 4px;">${newPassword}</p>
-                  <p style="margin: 10px 0 0 0; font-family: Arial, sans-serif; font-size: 11px; color: #999999;">👆 Copie esta senha para fazer login</p>
-                </td>
-              </tr>
-            </table>
-          </td>
-        </tr>
-      </table>
-    `;
-    
+    // Substituir variáveis no texto do template
     const emailBody = template.bodyText
       .replace(/{nome}/g, `<strong style="color: ${template.primaryColor};">${name}</strong>`)
       .replace(/{email}/g, `<strong style="color: ${template.textColor};">${email}</strong>`)
-      .replace(/{senha}/g, passwordHighlight)
+      .replace(/{senha}/g, `<strong style="font-family: 'Courier New', Courier, monospace; font-size: 18px; color: ${template.primaryColor}; letter-spacing: 1px;">${newPassword}</strong>`)
       .replace(/{link}/g, appUrl)
       .replace(/\n/g, '<br>');
 
