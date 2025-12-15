@@ -90,15 +90,36 @@ export async function saveUserSettings(
 
 export async function getUserSettings(firestore: any, userId: string) {
   try {
-    const userRef = doc(firestore, 'users', userId);
-    const docSnap = await getDoc(userRef);
+    // Detectar se é Admin SDK ou Client SDK
+    const isAdminSDK = typeof firestore.collection === 'function';
+    
+    let docSnap: any;
+    let data: any;
+    
+    if (isAdminSDK) {
+      // Admin SDK (servidor)
+      const userRef = firestore.collection('users').doc(userId);
+      docSnap = await userRef.get();
+      
+      if (!docSnap.exists) {
+        console.log('User document does not exist in Firestore:', userId);
+        return { success: true, data: null };
+      }
+      
+      data = docSnap.data();
+    } else {
+      // Client SDK (navegador)
+      const userRef = doc(firestore, 'users', userId);
+      docSnap = await getDoc(userRef);
 
-    if (!docSnap.exists()) {
-      console.log('User document does not exist in Firestore:', userId);
-      return { success: true, data: null };
+      if (!docSnap.exists()) {
+        console.log('User document does not exist in Firestore:', userId);
+        return { success: true, data: null };
+      }
+
+      data = docSnap.data();
     }
-
-    const data = docSnap.data();
+    
     console.log('User data from Firestore:', data);
     
     return {

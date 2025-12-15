@@ -48,16 +48,21 @@ export function FloatingSaveButton({
       
       <Button
         type="button"
-        size="icon"
         onClick={onSave}
         disabled={isLoading}
-        className="h-14 w-14 rounded-full shadow-lg hover:shadow-xl transition-all"
+        className="h-12 px-6 rounded-full shadow-lg hover:shadow-xl transition-all gap-2"
         title={saveLabel}
       >
         {isLoading ? (
-          <Loader2 className="h-6 w-6 animate-spin" />
+          <>
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Salvando...</span>
+          </>
         ) : (
-          <Save className="h-6 w-6" />
+          <>
+            <Save className="h-5 w-5" />
+            <span>{saveLabel}</span>
+          </>
         )}
       </Button>
     </div>

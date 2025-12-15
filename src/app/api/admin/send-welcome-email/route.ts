@@ -41,54 +41,32 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Buscar as configurações do Resend no Firestore usando REST API
-    const projectId = firebaseConfig.projectId;
-    const firestoreUrl = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/users/${currentUserId}`;
+    // Buscar as configurações do Resend de TODOS os usuários MASTER
+    const { getMasterResendApiKey, getMasterResendConfig } = await import('@/lib/api-keys');
     
     let resendApiKey = process.env.RESEND_API_KEY || '';
     let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
     let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
-    console.log('=== BUSCANDO CONFIGURAÇÕES DO RESEND ===');
-    console.log('User ID:', currentUserId);
-    console.log('Firestore URL:', firestoreUrl);
+    console.log('=== BUSCANDO CONFIGURAÇÕES DO RESEND EM TODOS OS MASTER USERS ===');
 
     try {
-      const firestoreResponse = await fetch(firestoreUrl, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      console.log('Firestore Response Status:', firestoreResponse.status);
-
-      if (firestoreResponse.ok) {
-        const userData = await firestoreResponse.json();
-        const fields = userData.fields || {};
-        
-        console.log('Campos encontrados:', Object.keys(fields));
-        console.log('resendApiKey presente?', !!fields.resendApiKey);
-        console.log('resendFromEmail presente?', !!fields.resendFromEmail);
-        console.log('appUrl presente?', !!fields.appUrl);
-        
-        if (fields.resendApiKey?.stringValue) {
-          resendApiKey = fields.resendApiKey.stringValue;
-          console.log('✅ resendApiKey carregada do Firestore');
-        }
-        if (fields.resendFromEmail?.stringValue) {
-          resendFromEmail = fields.resendFromEmail.stringValue;
-          console.log('✅ resendFromEmail carregada do Firestore');
-        }
-        if (fields.appUrl?.stringValue) {
-          appUrl = fields.appUrl.stringValue;
-          console.log('✅ appUrl carregada do Firestore');
-        }
-      } else {
-        const errorText = await firestoreResponse.text();
-        console.error('Erro ao buscar do Firestore:', errorText);
+      // Buscar API key de todos os MASTER users
+      const masterApiKey = await getMasterResendApiKey();
+      if (masterApiKey) {
+        resendApiKey = masterApiKey;
+        console.log('✅ resendApiKey encontrada em um dos MASTER users');
       }
-    } catch (firestoreError) {
-      console.error('Erro ao buscar configurações do Firestore:', firestoreError);
+
+      // Buscar configurações adicionais de todos os MASTER users
+      const masterConfig = await getMasterResendConfig();
+      if (masterConfig) {
+        resendFromEmail = masterConfig.resendFromEmail;
+        appUrl = masterConfig.appUrl;
+        console.log('✅ Configurações do Resend encontradas em um dos MASTER users');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar configurações do Resend dos MASTER users:', error);
     }
 
     console.log('Configurações finais:');

@@ -120,20 +120,29 @@ export async function POST(request: NextRequest) {
       .sort(([, a], [, b]) => b.value - a.value)
       .slice(0, 5);
 
-    // Buscar configurações de email usando Admin SDK
+    // Buscar configurações de email de TODOS os usuários MASTER
+    console.log('📧 Buscando configurações de email em todos os MASTER users...');
+    const { getMasterResendApiKey, getMasterResendConfig } = await import('@/lib/api-keys');
+    
     let resendApiKey = process.env.RESEND_API_KEY || '';
     let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+    let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
     try {
-      const masterDoc = await firestore.collection('users').doc(userId).get();
-      if (masterDoc.exists) {
-        const data = masterDoc.data();
-        if (data?.resendApiKey) resendApiKey = data.resendApiKey;
-        if (data?.resendFromEmail) resendFromEmail = data.resendFromEmail;
+      const masterApiKey = await getMasterResendApiKey();
+      if (masterApiKey) {
+        resendApiKey = masterApiKey;
+        console.log('✅ resendApiKey encontrada em um dos MASTER users');
+      }
+
+      const masterConfig = await getMasterResendConfig();
+      if (masterConfig) {
+        resendFromEmail = masterConfig.resendFromEmail;
+        appUrl = masterConfig.appUrl;
+        console.log('✅ Configurações do Resend encontradas em um dos MASTER users');
       }
     } catch (err) {
-      console.error('Erro ao buscar configurações do Resend:', err);
+      console.error('Erro ao buscar configurações do Resend dos MASTER users:', err);
     }
 
     // Buscar template personalizado de relatório usando Admin SDK

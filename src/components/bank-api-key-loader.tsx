@@ -213,6 +213,7 @@ export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, 
                 size="sm"
                 onClick={handleRemoveWiseKey}
                 className="w-full"
+                disabled={!isEditing}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Remover Wise da sessão
@@ -224,7 +225,7 @@ export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, 
                 type="button"
                 onClick={handleLoadWiseKey}
                 className="flex-1"
-                disabled={isEditing}
+                disabled={!isEditing}
                 variant="outline"
               >
                 Carregar
@@ -234,7 +235,7 @@ export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, 
                 variant="destructive"
                 size="icon"
                 onClick={handleDeleteWiseFromSystem}
-                disabled={isEditing}
+                disabled={!isEditing}
                 title="Excluir chave Wise do sistema"
               >
                 <Trash2 className="h-4 w-4" />
@@ -266,6 +267,7 @@ export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, 
                 size="sm"
                 onClick={handleRemoveC6Key}
                 className="w-full"
+                disabled={!isEditing}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Remover C6 da sessão
@@ -277,7 +279,7 @@ export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, 
                 type="button"
                 onClick={handleLoadC6Key}
                 className="flex-1"
-                disabled={isEditing}
+                disabled={!isEditing}
                 variant="outline"
               >
                 Carregar
@@ -287,7 +289,7 @@ export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, 
                 variant="destructive"
                 size="icon"
                 onClick={handleDeleteC6FromSystem}
-                disabled={isEditing}
+                disabled={!isEditing}
                 title="Excluir chave C6 do sistema"
               >
                 <Trash2 className="h-4 w-4" />

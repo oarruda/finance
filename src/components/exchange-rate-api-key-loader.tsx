@@ -166,6 +166,7 @@ export function ExchangeRateApiKeyLoader({ savedApiKey, isEditing = false, onLoa
                 size="sm"
                 onClick={handleRemoveKey}
                 className="flex-1"
+                disabled={!isEditing}
               >
                 <Trash2 className="mr-2 h-4 w-4" />
                 Remover da sessão
@@ -209,7 +210,7 @@ export function ExchangeRateApiKeyLoader({ savedApiKey, isEditing = false, onLoa
                     type="button"
                     onClick={handleLoadApiKey}
                     className="flex-1"
-                    disabled={isEditing}
+                    disabled={!isEditing}
                   >
                     Carregar
                   </Button>
@@ -218,7 +219,7 @@ export function ExchangeRateApiKeyLoader({ savedApiKey, isEditing = false, onLoa
                     variant="destructive"
                     size="icon"
                     onClick={handleDeleteFromSystem}
-                    disabled={isEditing}
+                    disabled={!isEditing}
                     title="Excluir chave do sistema"
                   >
                     <Trash2 className="h-4 w-4" />

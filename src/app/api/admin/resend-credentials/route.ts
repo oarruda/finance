@@ -113,18 +113,30 @@ export async function POST(request: NextRequest) {
       isTemporaryPassword: true,
     });
 
-    // Buscar configurações de email do Firestore
-    console.log('📧 Buscando configurações de email...');
+    // Buscar configurações de email de TODOS os usuários MASTER
+    console.log('📧 Buscando configurações de email em todos os MASTER users...');
+    const { getMasterResendApiKey, getMasterResendConfig } = await import('@/lib/api-keys');
+    
     let resendApiKey = process.env.RESEND_API_KEY || '';
     let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Finance App <noreply@finances.rafaelarruda.com.br>';
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+    let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
-    // Tentar buscar do usuário MASTER atual
-    const currentUserDoc = await db.collection('users').doc(decodedToken.uid).get();
-    if (currentUserDoc.exists) {
-      const currentUserData = currentUserDoc.data();
-      if (currentUserData?.resendApiKey) resendApiKey = currentUserData.resendApiKey;
-      if (currentUserData?.resendFromEmail) resendFromEmail = currentUserData.resendFromEmail;
+    // Buscar API key e configurações de todos os MASTER users
+    try {
+      const masterApiKey = await getMasterResendApiKey();
+      if (masterApiKey) {
+        resendApiKey = masterApiKey;
+        console.log('✅ resendApiKey encontrada em um dos MASTER users');
+      }
+
+      const masterConfig = await getMasterResendConfig();
+      if (masterConfig) {
+        resendFromEmail = masterConfig.resendFromEmail;
+        appUrl = masterConfig.appUrl;
+        console.log('✅ Configurações do Resend encontradas em um dos MASTER users');
+      }
+    } catch (error) {
+      console.error('Erro ao buscar configurações do Resend dos MASTER users:', error);
     }
 
     if (!resendApiKey) {

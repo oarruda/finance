@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useUser, useFirebase } from '@/firebase';
 import { Loader2, ShieldAlert, Trash2 } from 'lucide-react';
 import * as React from 'react';
@@ -77,6 +78,7 @@ export default function SystemSettingsPage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    console.log('📝 Campo alterado:', name, '=', value ? `${value.substring(0, 8)}...` : 'VAZIO');
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
@@ -326,9 +328,17 @@ export default function SystemSettingsPage() {
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* AI APIs Configuration */}
-        <Card>
+      <Tabs defaultValue="ai" className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="ai">🤖 IA</TabsTrigger>
+          <TabsTrigger value="exchange">💱 Câmbio</TabsTrigger>
+          <TabsTrigger value="banks">🏦 Bancos</TabsTrigger>
+          <TabsTrigger value="email">📧 Email</TabsTrigger>
+        </TabsList>
+
+        {/* AI APIs Tab */}
+        <TabsContent value="ai" className="space-y-4">
+          <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -432,9 +442,11 @@ export default function SystemSettingsPage() {
             </div>
           </CardContent>
         </Card>
+        </TabsContent>
 
-        {/* Exchange Rate APIs Configuration */}
-        <Card>
+        {/* Exchange Rate APIs Tab */}
+        <TabsContent value="exchange" className="space-y-4">
+          <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -538,9 +550,11 @@ export default function SystemSettingsPage() {
             </div>
           </CardContent>
         </Card>
+        </TabsContent>
 
-        {/* Bank APIs Configuration */}
-        <Card>
+        {/* Bank APIs Tab */}
+        <TabsContent value="banks" className="space-y-4">
+          <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -687,9 +701,11 @@ export default function SystemSettingsPage() {
               </div>
           </CardContent>
         </Card>
+        </TabsContent>
 
-        {/* Resend Email API Configuration */}
-        <Card>
+        {/* Email API Tab */}
+        <TabsContent value="email" className="space-y-4">
+          <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -847,7 +863,8 @@ export default function SystemSettingsPage() {
             </div>
           </CardContent>
         </Card>
-      </div>
+        </TabsContent>
+      </Tabs>
 
       {isEditing && (
         <FloatingSaveButton
