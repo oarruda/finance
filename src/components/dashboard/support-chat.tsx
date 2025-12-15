@@ -75,14 +75,44 @@ export function SupportChat() {
   // ID da conversa selecionada (tanto para master quanto para cliente)
   const activeConversationId = selectedConversation;
 
-  // Função para gerar número de ticket único
-  const generateTicketNumber = () => {
+  // Função para gerar número de ticket único com sequencial do dia
+  const generateTicketNumber = async () => {
+    if (!firestore) return '#00000000-00';
+    
     const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
-    const random = Math.floor(1000 + Math.random() * 9000); // 4 dígitos
-    return `#${year}${month}${day}-${random}`;
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const year = String(now.getFullYear());
+    const datePrefix = `${day}${month}${year}`;
+    
+    try {
+      // Buscar todos os tickets que começam com a data de hoje
+      const conversationsRef = collection(firestore, 'supportConversations');
+      const q = query(conversationsRef);
+      const snapshot = await getDocs(q);
+      
+      // Filtrar tickets do dia e extrair números sequenciais
+      const todayTickets = snapshot.docs
+        .map(doc => doc.data().ticketNumber)
+        .filter((ticket: string) => ticket && ticket.startsWith(`#${datePrefix}`))
+        .map((ticket: string) => {
+          const match = ticket.match(/\d{2}$/); // Últimos 2 dígitos
+          return match ? parseInt(match[0], 10) : -1;
+        })
+        .filter(num => num >= 0);
+      
+      // Encontrar o próximo número sequencial
+      const nextSequential = todayTickets.length > 0 
+        ? Math.max(...todayTickets) + 1 
+        : 0;
+      
+      const sequential = String(nextSequential).padStart(2, '0');
+      return `#${datePrefix}${sequential}`;
+    } catch (error) {
+      console.error('Erro ao gerar número de ticket:', error);
+      // Fallback: usar timestamp
+      return `#${datePrefix}${String(Date.now() % 100).padStart(2, '0')}`;
+    }
   };
 
   // Função para tocar som de notificação
@@ -483,7 +513,7 @@ export function SupportChat() {
       // Gerar novo número de ticket se for conversa nova ou reaberta
       let ticketNumber = conversationSnap.exists() ? conversationSnap.data()?.ticketNumber : undefined;
       if (isNewConversation || wasClosedConversation) {
-        ticketNumber = generateTicketNumber();
+        ticketNumber = await generateTicketNumber();
       }
 
       // Determinar o userId do cliente (quem está pedindo suporte)
@@ -623,7 +653,7 @@ export function SupportChat() {
     
     try {
       // Gerar novo ticket
-      const ticketNumber = generateTicketNumber();
+      const ticketNumber = await generateTicketNumber();
       
       // Criar nova conversa
       const newConversationRef = doc(collection(firestore, 'supportConversations'));
@@ -908,6 +938,11 @@ export function SupportChat() {
                   <div className="flex-1">
                     <CardTitle className="text-sm">{isMaster ? convo.userName : 'Suporte'}</CardTitle>
                     <CardDescription className="text-xs">{isMaster ? convo.userEmail : 'Equipe de suporte'}</CardDescription>
+                    {convo.ticketNumber && (
+                      <Badge variant="outline" className="text-xs mt-1">
+                        {convo.ticketNumber}
+                      </Badge>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -944,6 +979,39 @@ export function SupportChat() {
                       locale: ptBR,
                     })}
                 </p>
+                
+                {/* Mostrar últimos 3 tickets fechados do cliente */}
+                {isMaster && (() => {
+                  const clientClosedTickets = closedConversations
+                    .filter(c => c.userId === convo.userId)
+                    .slice(0, 3);
+                  
+                  if (clientClosedTickets.length > 0) {
+                    return (
+                      <div className="mt-3 pt-3 border-t">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">
+                          Tickets anteriores:
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {clientClosedTickets.map((ticket) => (
+                            <Badge
+                              key={ticket.id}
+                              variant="secondary"
+                              className="text-xs cursor-pointer hover:bg-secondary/80"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedConversation(ticket.id);
+                              }}
+                            >
+                              {ticket.ticketNumber}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </CardHeader>
           </Card>
