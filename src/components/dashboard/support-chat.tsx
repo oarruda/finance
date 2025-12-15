@@ -1128,13 +1128,14 @@ export function SupportChat() {
         <Button 
           onClick={() => setIsOpen(true)}
           size="lg"
-          className={`h-14 w-14 rounded-full shadow-2xl hover:shadow-xl transition-all ${
+          className={`rounded-full shadow-2xl hover:shadow-xl transition-all flex items-center gap-2 px-6 h-14 ${
             isMaster && hasPendingSupport 
               ? 'bg-yellow-500 hover:bg-yellow-600 animate-pulse' 
               : ''
           }`}
         >
           <MessageCircle className="h-6 w-6" />
+          <span className="font-medium">Suporte</span>
         </Button>
       </div>
 
