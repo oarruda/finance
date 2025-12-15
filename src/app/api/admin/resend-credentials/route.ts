@@ -46,11 +46,9 @@ export async function POST(request: NextRequest) {
     console.log('========================================');
 
     // Buscar dados do usuário no Firestore usando REST API
-    const userFirestoreUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}`;
+    const userFirestoreUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}?key=${firebaseConfig.apiKey}`;
     
-    const userResponse = await fetch(userFirestoreUrl, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
+    const userResponse = await fetch(userFirestoreUrl);
 
     if (!userResponse.ok) {
       console.error('❌ Usuário não encontrado no Firestore');
@@ -113,12 +111,11 @@ export async function POST(request: NextRequest) {
     console.log('Marcando senha como temporária no Firestore...');
 
     // Marcar senha como temporária no Firestore usando REST API
-    const updateUserUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}?updateMask.fieldPaths=isTemporaryPassword`;
+    const updateUserUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}?updateMask.fieldPaths=isTemporaryPassword&key=${firebaseConfig.apiKey}`;
     
     await fetch(updateUserUrl, {
       method: 'PATCH',
       headers: {
-        'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -132,16 +129,14 @@ export async function POST(request: NextRequest) {
     console.log('Buscando configurações de email...');
 
     // Buscar configurações do Resend do usuário MASTER usando REST API
-    const masterSettingsUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${currentUserId}`;
+    const masterSettingsUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${currentUserId}?key=${firebaseConfig.apiKey}`;
     
     let resendApiKey = process.env.RESEND_API_KEY || '';
     let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
     let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
     try {
-      const masterResponse = await fetch(masterSettingsUrl, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      const masterResponse = await fetch(masterSettingsUrl);
 
       if (masterResponse.ok) {
         const masterDoc = await masterResponse.json();
@@ -181,10 +176,8 @@ export async function POST(request: NextRequest) {
 
     try {
       console.log('Buscando template de email...');
-      const templateUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/emailTemplates/${currentUserId}`;
-      const templateResponse = await fetch(templateUrl, {
-        headers: { 'Authorization': `Bearer ${token}` },
-      });
+      const templateUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/emailTemplates/${currentUserId}?key=${firebaseConfig.apiKey}`;
+      const templateResponse = await fetch(templateUrl);
 
       if (templateResponse.ok) {
         const templateDoc = await templateResponse.json();
@@ -214,9 +207,7 @@ export async function POST(request: NextRequest) {
     const emailBody = template.bodyText
       .replace(/{nome}/g, `<strong style="color: ${template.primaryColor};">${name}</strong>`)
       .replace(/{email}/g, `<strong style="color: ${template.textColor};">${email}</strong>`)
-      .replace(/{senha}/g, newPassword.split('').map(char => 
-        `<span style="display: inline-block; font-family: 'Courier New', Courier, monospace; font-size: 22px; font-weight: bold; color: ${template.primaryColor}; margin: 0 1px; -webkit-text-security: none; text-security: none; user-select: text;">${char}</span>`
-      ).join(''))
+      .replace(/{senha}/g, `<span style="font-family: 'Courier New', Courier, monospace; font-size: 20px; font-weight: bold; color: ${template.primaryColor}; letter-spacing: 2px; background-color: #f0f0f0; padding: 8px 12px; border-radius: 4px; display: inline-block; -webkit-text-security: none !important; text-security: none !important;">${newPassword}</span>`)
       .replace(/{link}/g, appUrl)
       .replace(/\n/g, '<br>');
 
