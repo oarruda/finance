@@ -160,39 +160,50 @@ export async function POST(request: NextRequest) {
       .replace(/{link}/g, appUrl)
       .replace(/\n/g, '<br>');
 
-    // Criar HTML do email com template personalizado (compatível com todos os clientes de email)
+    // Criar HTML do email com template personalizado (compatível e responsivo)
     const emailHtml = `
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="format-detection" content="telephone=no" />
     <title>${template.headerTitle}</title>
+    <style type="text/css">
+      @media only screen and (max-width: 600px) {
+        .content-wrapper { width: 100% !important; }
+        .mobile-padding { padding: 20px 15px !important; }
+        .mobile-text { font-size: 14px !important; }
+        .mobile-title { font-size: 24px !important; }
+      }
+    </style>
   </head>
-  <body style="margin: 0; padding: 0; background-color: ${template.backgroundColor};">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: ${template.backgroundColor}; padding: 20px 0;">
+  <body style="margin: 0; padding: 0; background-color: ${template.backgroundColor}; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: ${template.backgroundColor}; min-width: 100%;">
       <tr>
-        <td align="center">
-          <table border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; max-width: 600px;">
+        <td align="center" style="padding: 10px;">
+          <table border="0" cellpadding="0" cellspacing="0" width="100%" class="content-wrapper" style="background-color: #ffffff; max-width: 600px;">
             <!-- Header -->
             <tr>
-              <td align="center" bgcolor="${template.primaryColor}" style="padding: 40px 30px; background-color: ${template.primaryColor};">
-                <h1 style="margin: 0; font-family: Arial, sans-serif; font-size: 28px; font-weight: bold; color: #ffffff; line-height: 1.3;">${template.headerTitle}</h1>
+              <td align="center" bgcolor="${template.primaryColor}" class="mobile-padding" style="padding: 30px 20px; background-color: ${template.primaryColor};">
+                <h1 class="mobile-title" style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 26px; font-weight: bold; color: #ffffff; line-height: 1.3; word-wrap: break-word;">${template.headerTitle}</h1>
               </td>
             </tr>
             <!-- Body -->
             <tr>
-              <td style="padding: 40px 30px; font-family: Arial, sans-serif; font-size: 15px; line-height: 1.8; color: ${template.textColor};">
-                ${emailBody}
+              <td class="mobile-padding mobile-text" style="padding: 30px 20px; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6; color: ${template.textColor}; word-wrap: break-word; overflow-wrap: break-word;">
+                <div style="max-width: 100%; overflow-wrap: break-word;">
+                  ${emailBody}
+                </div>
                 
                 <!-- Button -->
-                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 30px; margin-bottom: 30px;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 20px 0;">
                   <tr>
-                    <td align="center">
+                    <td align="center" style="padding: 10px 0;">
                       <table border="0" cellpadding="0" cellspacing="0">
                         <tr>
                           <td align="center" bgcolor="${template.primaryColor}" style="border-radius: 6px; background-color: ${template.primaryColor};">
-                            <a href="${appUrl}" target="_blank" style="display: inline-block; padding: 16px 36px; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; color: #ffffff; text-decoration: none; border-radius: 6px;">Acessar Sistema</a>
+                            <a href="${appUrl}" target="_blank" style="display: inline-block; padding: 14px 30px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: bold; color: #ffffff !important; text-decoration: none; border-radius: 6px;">Acessar Sistema</a>
                           </td>
                         </tr>
                       </table>
@@ -203,11 +214,11 @@ export async function POST(request: NextRequest) {
             </tr>
             <!-- Footer -->
             <tr>
-              <td bgcolor="#f8f9fa" style="padding: 30px; background-color: #f8f9fa; border-top: 1px solid #e9ecef;">
+              <td bgcolor="#f8f9fa" class="mobile-padding" style="padding: 20px; background-color: #f8f9fa; border-top: 1px solid #e9ecef;">
                 <table border="0" cellpadding="0" cellspacing="0" width="100%">
                   <tr>
-                    <td align="center" style="font-family: Arial, sans-serif; font-size: 12px; line-height: 1.6; color: #666666;">
-                      <p style="margin: 0 0 10px 0;">${template.footerText}</p>
+                    <td align="center" style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.5; color: #666666; word-wrap: break-word;">
+                      <p style="margin: 0 0 8px 0;">${template.footerText}</p>
                       <p style="margin: 0;">© ${new Date().getFullYear()} ${template.companyName}. Todos os direitos reservados.</p>
                     </td>
                   </tr>
