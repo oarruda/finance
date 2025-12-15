@@ -152,11 +152,19 @@ export async function POST(request: NextRequest) {
       console.log('Usando template padrão (erro ao carregar personalizado):', err);
     }
 
-    // Destacar senha no texto
+    // Destacar senha no texto com formatação especial
+    const passwordHighlight = `
+      <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 2px solid ${template.primaryColor}; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Sua Senha Temporária</div>
+        <div style="font-family: 'Courier New', Courier, monospace; font-size: 24px; font-weight: 700; color: ${template.primaryColor}; letter-spacing: 2px; user-select: all; padding: 8px; background: white; border-radius: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">${password}</div>
+        <div style="font-size: 11px; color: #999; margin-top: 8px;">👆 Clique para selecionar e copiar</div>
+      </div>
+    `;
+    
     const emailBody = template.bodyText
-      .replace(/{nome}/g, `<strong>${name}</strong>`)
-      .replace(/{email}/g, `<strong>${email}</strong>`)
-      .replace(/{senha}/g, `<strong style="color: ${template.primaryColor}; font-size: 18px; background: #f8f9fa; padding: 8px 12px; border-radius: 4px; display: inline-block; margin: 5px 0; font-family: monospace; letter-spacing: 1px;">${password}</strong>`)
+      .replace(/{nome}/g, `<strong style="color: ${template.primaryColor};">${name}</strong>`)
+      .replace(/{email}/g, `<strong style="color: ${template.textColor};">${email}</strong>`)
+      .replace(/{senha}/g, passwordHighlight)
       .replace(/{link}/g, appUrl)
       .replace(/\n/g, '<br>');
 

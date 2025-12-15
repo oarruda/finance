@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { firebaseConfig } from '@/firebase/config';
+import { getServerSdks } from '@/firebase/server';
 
 export async function POST(request: NextRequest) {
   try {
+    // Inicializar Firebase Admin
+    const { auth, firestore: db } = getServerSdks();
+
     // Obter token do header para verificar autenticação
     const authHeader = request.headers.get('authorization');
     
@@ -12,22 +15,9 @@ export async function POST(request: NextRequest) {
 
     const token = authHeader.split('Bearer ')[1];
     
-    // Verificar autenticação via REST API
-    const verifyResponse = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: token }),
-      }
-    );
-
-    if (!verifyResponse.ok) {
-      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
-    }
-
-    const verifyData = await verifyResponse.json();
-    const currentUserId = verifyData.users[0].localId;
+    // Verificar autenticação usando Admin SDK
+    const decodedToken = await auth.verifyIdToken(token);
+    const currentUserId = decodedToken.uid;
 
     // Obter dados do body
     const body = await request.json();
@@ -46,114 +36,114 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    // Buscar dados do usuário no Firestore
-    const userFirestoreUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}`;
-    
-    const userResponse = await fetch(userFirestoreUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    console.log('========================================');
+    console.log('🗑️  Iniciando deleção de usuário');
+    console.log('ID:', userId);
+    console.log('========================================');
 
-    if (!userResponse.ok) {
-      console.error('Erro ao buscar usuário no Firestore');
+    // 1. Buscar dados do usuário no Firestore
+    console.log('1️⃣  Buscando dados no Firestore...');
+    const userDoc = await db.collection('users').doc(userId).get();
+
+    if (!userDoc.exists) {
+      console.error('❌ Usuário não encontrado no Firestore');
       return NextResponse.json({ 
         error: 'Usuário não encontrado' 
       }, { status: 404 });
     }
 
-    const userDoc = await userResponse.json();
-    const userData = userDoc.fields;
-    const email = userData?.email?.stringValue || '';
+    const userData = userDoc.data();
+    const email = userData?.email;
 
     if (!email) {
+      console.error('❌ Email do usuário não encontrado');
       return NextResponse.json({ 
         error: 'Email do usuário não encontrado' 
       }, { status: 404 });
     }
 
-    // Buscar usuário no Firebase Auth pelo email
-    const getUserResponse = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: [email] }),
-      }
-    );
+    console.log('✅ Usuário encontrado:', email);
 
-    if (getUserResponse.ok) {
-      const getUserData = await getUserResponse.json();
-      const firebaseUserId = getUserData.users?.[0]?.localId;
-
-      if (firebaseUserId) {
-        // Deletar usuário do Firebase Auth
-        const deleteAuthResponse = await fetch(
-          `https://identitytoolkit.googleapis.com/v1/accounts:delete?key=${firebaseConfig.apiKey}`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              localId: firebaseUserId,
-            }),
-          }
-        );
-
-        if (!deleteAuthResponse.ok) {
-          const errorData = await deleteAuthResponse.json();
-          console.error('Erro ao deletar usuário do Auth:', errorData);
-          return NextResponse.json({ 
-            error: 'Erro ao deletar usuário do Firebase Auth: ' + (errorData.error?.message || 'Erro desconhecido')
-          }, { status: 500 });
-        }
-
-        console.log('Usuário deletado do Firebase Auth:', email);
-      }
+    // 2. Deletar do Firebase Authentication
+    console.log('2️⃣  Deletando do Firebase Authentication...');
+    try {
+      await auth.deleteUser(userId);
+      console.log('✅ Usuário deletado do Authentication');
+    } catch (authError: any) {
+      console.error('⚠️  Erro ao deletar do Authentication:', authError.message);
+      // Continuar mesmo se falhar (usuário pode não existir no Auth)
     }
 
-    // Deletar usuário do Firestore
-    const deleteFirestoreResponse = await fetch(userFirestoreUrl, {
-      method: 'DELETE',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-      },
-    });
+    // 3. Deletar do Firestore (users collection)
+    console.log('3️⃣  Deletando do Firestore (users)...');
+    await db.collection('users').doc(userId).delete();
+    console.log('✅ Usuário deletado do Firestore');
 
-    if (!deleteFirestoreResponse.ok) {
-      console.error('Erro ao deletar usuário do Firestore');
-      return NextResponse.json({ 
-        error: 'Erro ao deletar usuário do Firestore' 
-      }, { status: 500 });
+    // 4. Deletar das collections de roles
+    console.log('4️⃣  Deletando das collections de roles...');
+    const deleteRoles = [];
+    
+    try {
+      const masterDoc = await db.collection('roles_master').doc(userId).get();
+      if (masterDoc.exists) {
+        deleteRoles.push(db.collection('roles_master').doc(userId).delete());
+        console.log('  - Encontrado em roles_master');
+      }
+    } catch (e) {
+      console.log('  - Não estava em roles_master');
     }
 
-    console.log('Usuário deletado do Firestore:', userId);
+    try {
+      const adminDoc = await db.collection('roles_admin').doc(userId).get();
+      if (adminDoc.exists) {
+        deleteRoles.push(db.collection('roles_admin').doc(userId).delete());
+        console.log('  - Encontrado em roles_admin');
+      }
+    } catch (e) {
+      console.log('  - Não estava em roles_admin');
+    }
 
-    // Deletar das collections de roles (roles_master, roles_admin)
-    const rolesMasterUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/roles_master/${userId}`;
-    const rolesAdminUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/roles_admin/${userId}`;
+    try {
+      const viewerDoc = await db.collection('roles_viewer').doc(userId).get();
+      if (viewerDoc.exists) {
+        deleteRoles.push(db.collection('roles_viewer').doc(userId).delete());
+        console.log('  - Encontrado em roles_viewer');
+      }
+    } catch (e) {
+      console.log('  - Não estava em roles_viewer');
+    }
 
-    // Tentar deletar de ambas as collections (pode não existir em ambas)
-    await Promise.all([
-      fetch(rolesMasterUrl, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      }).catch(() => console.log('Usuário não estava em roles_master')),
-      fetch(rolesAdminUrl, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${token}` },
-      }).catch(() => console.log('Usuário não estava em roles_admin')),
-    ]);
+    if (deleteRoles.length > 0) {
+      await Promise.all(deleteRoles);
+      console.log(`✅ Deletado de ${deleteRoles.length} collection(s) de roles`);
+    } else {
+      console.log('ℹ️  Usuário não estava em nenhuma collection de roles');
+    }
 
-    console.log('Usuário removido das collections de roles');
+    console.log('========================================');
+    console.log('🎉 USUÁRIO COMPLETAMENTE DELETADO');
+    console.log('Email:', email);
+    console.log('ID:', userId);
+    console.log('========================================');
 
-    return NextResponse.json({
-      success: true,
-      message: 'Usuário deletado com sucesso do Firebase Auth, Firestore e roles',
-    });
-  } catch (error: any) {
-    console.error('Erro ao deletar usuário:', error);
     return NextResponse.json({ 
-      error: 'Erro ao deletar usuário: ' + (error.message || 'Erro desconhecido')
+      success: true,
+      message: 'Usuário deletado com sucesso',
+      deletedUser: { 
+        id: userId, 
+        email 
+      }
+    });
+
+  } catch (error: any) {
+    console.error('========================================');
+    console.error('💥 ERRO NA DELEÇÃO');
+    console.error('Mensagem:', error.message);
+    console.error('Stack:', error.stack);
+    console.error('========================================');
+    
+    return NextResponse.json({ 
+      error: 'Erro ao deletar usuário: ' + error.message 
     }, { status: 500 });
   }
 }

@@ -90,16 +90,17 @@ export async function POST(request: NextRequest) {
       }
     );
 
-    const getUserData = await getUserResponse.json();
-    console.log('Resposta da busca de usuário:', getUserData);
-
     let firebaseUserId;
 
-    // Verificar se usuário foi encontrado no Auth
-    if (!getUserResponse.ok || !getUserData.users || getUserData.users.length === 0) {
-      console.log('Usuário não encontrado no Firebase Auth, criando:', email);
+    // Verificar resposta da busca
+    if (getUserResponse.ok && getUserData.users && getUserData.users.length > 0) {
+      // Usuário encontrado no Auth
+      firebaseUserId = getUserData.users[0].localId;
+      console.log('Firebase User ID encontrado:', firebaseUserId);
+    } else {
+      // Usuário não encontrado no Auth, tentar criar
+      console.log('Usuário não encontrado no Firebase Auth, tentando criar:', email);
       
-      // Criar usuário no Firebase Auth se não existir
       const createUserResponse = await fetch(
         `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${firebaseConfig.apiKey}`,
         {
@@ -114,12 +115,15 @@ export async function POST(request: NextRequest) {
         }
       );
 
+      const createUserData = await createUserResponse.json();
+
       if (!createUserResponse.ok) {
-        const errorData = await createUserResponse.json();
-        console.error('Erro ao criar usuário no Auth:', errorData);
+        console.error('Erro ao criar usuário:', createUserData);
         
-        // Se o erro for que email já existe, tentar buscar novamente
-        if (errorData.error?.message === 'EMAIL_EXISTS') {
+        // Se email já existe, buscar o usuário existente
+        if (createUserData.error?.message === 'EMAIL_EXISTS') {
+          console.log('Email já existe, buscando usuário existente...');
+          
           const retryGetUser = await fetch(
             `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
             {
@@ -129,25 +133,32 @@ export async function POST(request: NextRequest) {
             }
           );
           
-          if (retryGetUser.ok) {
-            const retryData = await retryGetUser.json();
-            firebaseUserId = retryData.users?.[0]?.localId;
+          const retryData = await retryGetUser.json();
+          console.log('Resultado da segunda busca:', retryData);
+          
+          if (retryGetUser.ok && retryData.users && retryData.users.length > 0) {
+            firebaseUserId = retryData.users[0].localId;
+            console.log('Usuário encontrado na segunda tentativa:', firebaseUserId);
+          } else {
+            return NextResponse.json({ 
+              error: 'Erro: usuário existe mas não foi possível localizá-lo'
+            }, { status: 500 });
           }
-        }
-        
-        if (!firebaseUserId) {
+        } else {
           return NextResponse.json({ 
-            error: 'Erro ao sincronizar usuário: ' + (errorData.error?.message || 'Erro desconhecido')
+            error: 'Erro ao criar usuário: ' + (createUserData.error?.message || 'Erro desconhecido')
           }, { status: 500 });
         }
       } else {
-        const createUserData = await createUserResponse.json();
         firebaseUserId = createUserData.localId;
         console.log('Usuário criado no Auth com ID:', firebaseUserId);
       }
-    } else {
-      firebaseUserId = getUserData.users[0].localId;
-      console.log('Firebase User ID encontrado:', firebaseUserId);
+    }
+
+    if (!firebaseUserId) {
+      return NextResponse.json({ 
+        error: 'Não foi possível obter ID do usuário'
+      }, { status: 500 });
     }
     
     // Atualizar senha do usuário
@@ -269,11 +280,19 @@ export async function POST(request: NextRequest) {
       console.log('Usando template padrão (erro ao carregar personalizado):', err);
     }
 
-    // Destacar senha no texto
+    // Destacar senha no texto com formatação especial
+    const passwordHighlight = `
+      <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 2px solid ${template.primaryColor}; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
+        <div style="font-size: 12px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Sua Nova Senha Temporária</div>
+        <div style="font-family: 'Courier New', Courier, monospace; font-size: 24px; font-weight: 700; color: ${template.primaryColor}; letter-spacing: 2px; user-select: all; padding: 8px; background: white; border-radius: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">${newPassword}</div>
+        <div style="font-size: 11px; color: #999; margin-top: 8px;">👆 Clique para selecionar e copiar</div>
+      </div>
+    `;
+    
     const emailBody = template.bodyText
-      .replace(/{nome}/g, `<strong>${name}</strong>`)
-      .replace(/{email}/g, `<strong>${email}</strong>`)
-      .replace(/{senha}/g, `<strong style="color: ${template.primaryColor}; font-size: 18px; background: #f8f9fa; padding: 8px 12px; border-radius: 4px; display: inline-block; margin: 5px 0; font-family: monospace; letter-spacing: 1px;">${newPassword}</strong>`)
+      .replace(/{nome}/g, `<strong style="color: ${template.primaryColor};">${name}</strong>`)
+      .replace(/{email}/g, `<strong style="color: ${template.textColor};">${email}</strong>`)
+      .replace(/{senha}/g, passwordHighlight)
       .replace(/{link}/g, appUrl)
       .replace(/\n/g, '<br>');
 
