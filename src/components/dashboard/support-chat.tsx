@@ -281,18 +281,20 @@ export function SupportChat() {
     }
   }, [messages]);
 
-  // Detectar novas mensagens e tocar som
+  // Detectar novas mensagens e tocar som (funciona para TODOS os usuários)
   React.useEffect(() => {
     if (messages.length > lastMessageCount && lastMessageCount > 0) {
       const newMessage = messages[messages.length - 1];
       // Tocar som apenas se a mensagem não for do próprio usuário e o som estiver ativado
       if (newMessage.senderId !== user?.uid && soundEnabled) {
-        console.log('🔔 Nova mensagem recebida de:', newMessage.senderName);
+        console.log('🔔 Nova mensagem recebida de:', newMessage.senderName, '| Usuário atual:', user?.displayName, '| isMaster:', isMaster);
         playNotificationSound();
+      } else {
+        console.log('⚠️ Som não tocado - É sua própria mensagem ou som desativado');
       }
     }
     setLastMessageCount(messages.length);
-  }, [messages, user?.uid, soundEnabled, lastMessageCount]);
+  }, [messages, user?.uid, soundEnabled, lastMessageCount, isMaster, user?.displayName]);
 
   const handleSendMessage = async () => {
     if (!message.trim() || !user || !firestore) return;
