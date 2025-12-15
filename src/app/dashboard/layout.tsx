@@ -14,6 +14,7 @@ import * as React from 'react';
 import { Loader2 } from 'lucide-react';
 import { useUserPresence } from '@/hooks/use-user-presence';
 import { ChangePasswordDialog } from '@/components/auth/change-password-dialog';
+import { SessionTimeout } from '@/components/SessionTimeout';
 import { doc, getDoc } from 'firebase/firestore';
 
 export default function DashboardLayout({
@@ -123,6 +124,9 @@ export default function DashboardLayout({
           onPasswordChanged={() => setShowChangePassword(false)}
         />
       )}
+
+      {/* Controle de timeout de sessão */}
+      <SessionTimeout />
     </>
   );
 }
