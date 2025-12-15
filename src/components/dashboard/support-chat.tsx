@@ -177,6 +177,33 @@ export function SupportChat() {
     return () => unsubscribe();
   }, [firestore, activeConversationId]);
 
+  // Monitorar mensagens não lidas em tempo real (apenas para MASTER)
+  React.useEffect(() => {
+    if (!firestore || !user || !isMaster) return;
+
+    console.log('🔍 MASTER: Monitorando mensagens não lidas em tempo real...');
+    
+    // Monitorar todas as mensagens não lidas de outros usuários
+    const messagesRef = collection(firestore, 'supportMessages');
+    const q = query(
+      messagesRef,
+      where('read', '==', false),
+      where('senderId', '!=', user.uid)
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const hasUnread = !snapshot.empty;
+      console.log('📬 MASTER: Mensagens não lidas:', snapshot.size, '| hasPendingSupport:', hasUnread);
+      setHasPendingSupport(hasUnread);
+      
+      if (hasUnread) {
+        console.log('🔔 MASTER: Há mensagens aguardando resposta!');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [firestore, user, isMaster]);
+
   // Carregar todos os usuários com status de suporte (apenas para MASTER)
   React.useEffect(() => {
     if (!firestore || !user || !isMaster) return;
@@ -242,10 +269,6 @@ export function SupportChat() {
         });
 
         setAllUsers(users);
-        
-        // Verificar se há atendimentos pendentes
-        const hasPending = users.some(u => u.isWaitingSupport);
-        setHasPendingSupport(hasPending);
       } catch (error) {
         console.error('Erro ao carregar usuários:', error);
       }
@@ -328,14 +351,35 @@ export function SupportChat() {
 
   // Detectar novas mensagens e tocar som (funciona para TODOS os usuários)
   React.useEffect(() => {
+    console.log('🔍 [NOTIFICATION DEBUG]:', {
+      messagesLength: messages.length,
+      lastMessageCount,
+      soundEnabled,
+      isMaster,
+      userId: user?.uid,
+      userName: user?.displayName
+    });
+    
     if (messages.length > lastMessageCount && lastMessageCount > 0) {
       const newMessage = messages[messages.length - 1];
+      console.log('📨 [NOVA MENSAGEM DETECTADA]:', {
+        from: newMessage.senderName,
+        senderId: newMessage.senderId,
+        currentUserId: user?.uid,
+        isDifferent: newMessage.senderId !== user?.uid,
+        soundEnabled,
+        willPlaySound: newMessage.senderId !== user?.uid && soundEnabled
+      });
+      
       // Tocar som apenas se a mensagem não for do próprio usuário e o som estiver ativado
       if (newMessage.senderId !== user?.uid && soundEnabled) {
-        console.log('🔔 Nova mensagem recebida de:', newMessage.senderName, '| Usuário atual:', user?.displayName, '| isMaster:', isMaster);
+        console.log('🔔 TOCANDO SOM para:', user?.displayName, '(isMaster:', isMaster + ')');
         playNotificationSound();
       } else {
-        console.log('⚠️ Som não tocado - É sua própria mensagem ou som desativado');
+        console.log('⚠️ SOM NÃO TOCADO:', {
+          reason: newMessage.senderId === user?.uid ? 'mensagem própria' : 'som desativado',
+          soundEnabled
+        });
       }
     }
     setLastMessageCount(messages.length);
@@ -722,6 +766,32 @@ export function SupportChat() {
         <div className="space-y-4">
           {messages.map((msg) => {
             const isCurrentUser = msg.senderId === user?.uid;
+            
+            // Para MASTER: SEMPRE mostrar nome do USUÁRIO DO CHAT (cliente), não do remetente
+            // activeConversationId = ID do usuário cliente (dono do chat)
+            let displayName = msg.senderName;
+            
+            if (isMaster) {
+              if (isCurrentUser) {
+                // Se for mensagem do MASTER, mostrar "Você" ou nome do MASTER
+                displayName = user?.displayName || 'MASTER';
+              } else {
+                // Se for mensagem do cliente, SEMPRE mostrar nome do DONO DO CHAT
+                // Buscar pelo activeConversationId (que é o userId do cliente)
+                const chatOwner = selectedUser || 
+                                 allUsers.find(u => u.uid === activeConversationId) ||
+                                 conversations.find(c => c.id === activeConversationId);
+                
+                if (chatOwner) {
+                  displayName = chatOwner.displayName || (chatOwner as any).userName || 'Usuário';
+                  console.log('💬 Nome do chat:', displayName, '| activeConversationId:', activeConversationId);
+                } else {
+                  displayName = 'Usuário';
+                  console.warn('⚠️ Não encontrou dono do chat para:', activeConversationId);
+                }
+              }
+            }
+            
             return (
               <div
                 key={msg.id}
@@ -729,7 +799,7 @@ export function SupportChat() {
               >
                 <Avatar className="h-8 w-8">
                   <AvatarFallback>
-                    {msg.senderName.substring(0, 2).toUpperCase()}
+                    {displayName.substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'}`}>
@@ -740,7 +810,7 @@ export function SupportChat() {
                         : 'bg-muted'
                     }`}
                   >
-                    <p className="text-xs font-medium mb-1">{msg.senderName}</p>
+                    <p className="text-xs font-medium mb-1">{displayName}</p>
                     <p className="text-sm">{msg.text}</p>
                   </div>
                   <p className="text-xs text-muted-foreground mt-1">
@@ -787,24 +857,10 @@ export function SupportChat() {
       </SheetTrigger>
       <SheetContent side="right" className="w-full sm:w-[500px] sm:max-w-[500px]">
         <SheetHeader>
-          <div className="flex items-center justify-between">
-            <SheetTitle className="flex items-center gap-2">
-              <MessageCircle className="h-5 w-5" />
-              {isMaster ? 'Central de Suporte' : 'Suporte'}
-            </SheetTitle>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setSoundEnabled(!soundEnabled)}
-              title={soundEnabled ? 'Desativar som de notificação' : 'Ativar som de notificação'}
-            >
-              {soundEnabled ? (
-                <Bell className="h-4 w-4" />
-              ) : (
-                <BellOff className="h-4 w-4 text-muted-foreground" />
-              )}
-            </Button>
-          </div>
+          <SheetTitle className="flex items-center gap-2">
+            <MessageCircle className="h-5 w-5" />
+            {isMaster ? 'Central de Suporte' : 'Suporte'}
+          </SheetTitle>
           <SheetDescription>
             {isMaster
               ? 'Gerencie conversas de suporte com os usuários'
@@ -881,42 +937,22 @@ export function SupportChat() {
             </>
           )}
 
+          {/* Área de conversa - mostra quando não-MASTER OU quando MASTER tem conversa */}
           {((!isMaster) || (isMaster && selectedConversation)) && (
             <>
               {isMaster && (
-                <div className="flex gap-2 mb-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setSelectedConversation(null);
-                      setSelectedUser(null);
-                      setShowUserList(false);
-                    }}
-                    className="flex-1"
-                  >
-                    ← Voltar para lista
-                  </Button>
-                  {currentConversation?.status !== 'closed' && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleCloseTicket}
-                      title="Encerrar chamado"
-                      className="border-orange-500 text-orange-600 hover:bg-orange-50"
-                    >
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  )}
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => selectedConversation && handleDeleteConversation(selectedConversation)}
-                    title="Ocultar conversa"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSelectedConversation(null);
+                    setSelectedUser(null);
+                    setShowUserList(false);
+                  }}
+                  className="mb-2 w-full"
+                >
+                  ← Voltar para lista
+                </Button>
               )}
 
               {currentConversation?.status === 'closed' && (
@@ -933,30 +969,81 @@ export function SupportChat() {
 
               {renderMessages()}
 
-              <div className="flex gap-2">
-                <Input
-                  placeholder={currentConversation?.status === 'closed' && !isMaster ? 'Chamado encerrado - Abra um novo chat' : 'Digite sua mensagem...'}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage();
-                    }
-                  }}
-                  disabled={isSending || (currentConversation?.status === 'closed' && !isMaster)}
-                />
-                <Button
-                  onClick={handleSendMessage}
-                  disabled={!message.trim() || isSending}
-                  size="icon"
-                >
-                  {isSending ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Send className="h-4 w-4" />
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <Input
+                    placeholder={currentConversation?.status === 'closed' && !isMaster ? 'Chamado encerrado - Abra um novo chat' : 'Digite sua mensagem...'}
+                    value={message}
+                    onChange={(e) => setMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        handleSendMessage();
+                      }
+                    }}
+                    disabled={isSending || (currentConversation?.status === 'closed' && !isMaster)}
+                  />
+                  <Button
+                    onClick={handleSendMessage}
+                    disabled={!message.trim() || isSending}
+                    size="icon"
+                  >
+                    {isSending ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Send className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+
+                {/* ⚠️ BOTÕES DE CONTROLE - DEVEM APARECER AQUI ABAIXO ⚠️ */}
+                {(() => {
+                  console.log('🔍 Renderizando botões de controle:', { isMaster, selectedConversation, currentConversation });
+                  return null;
+                })()}
+                <div className="flex gap-2" style={{ backgroundColor: 'rgba(255,0,0,0.1)', padding: '8px', border: '2px solid red' }}>
+                  {/* Botão Som - para todos */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSoundEnabled(!soundEnabled)}
+                    title={soundEnabled ? 'Desativar som de notificação' : 'Ativar som de notificação'}
+                    className="flex-1"
+                  >
+                    {soundEnabled ? (
+                      <Bell className="h-4 w-4 mr-2" />
+                    ) : (
+                      <BellOff className="h-4 w-4 mr-2 text-muted-foreground" />
+                    )}
+                    {soundEnabled ? 'Som ativado' : 'Som desativado'}
+                  </Button>
+
+                  {/* Botão Encerrar - só MASTER em conversas abertas */}
+                  {isMaster && (!currentConversation || currentConversation?.status !== 'closed') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCloseTicket}
+                      title="Encerrar chamado"
+                      className="flex-1 border-orange-500 text-orange-600 hover:bg-orange-50"
+                    >
+                      <XCircle className="h-4 w-4 mr-2" />
+                      Encerrar
+                    </Button>
                   )}
-                </Button>
+
+                  {/* Botão Deletar - só MASTER */}
+                  {isMaster && (
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => selectedConversation && handleDeleteConversation(selectedConversation)}
+                      title="Ocultar conversa"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
               </div>
             </>
           )}
