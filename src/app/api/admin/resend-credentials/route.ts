@@ -93,16 +93,62 @@ export async function POST(request: NextRequest) {
     const getUserData = await getUserResponse.json();
     console.log('Resposta da busca de usuário:', getUserData);
 
-    // Verificar se usuário foi encontrado
-    if (!getUserResponse.ok || !getUserData.users || getUserData.users.length === 0) {
-      console.error('Usuário não encontrado no Firebase Auth:', email);
-      return NextResponse.json({ 
-        error: 'Usuário não encontrado no Firebase Auth. Entre em contato com o administrador.'
-      }, { status: 404 });
-    }
+    let firebaseUserId;
 
-    const firebaseUserId = getUserData.users[0].localId;
-    console.log('Firebase User ID encontrado:', firebaseUserId);
+    // Verificar se usuário foi encontrado no Auth
+    if (!getUserResponse.ok || !getUserData.users || getUserData.users.length === 0) {
+      console.log('Usuário não encontrado no Firebase Auth, criando:', email);
+      
+      // Criar usuário no Firebase Auth se não existir
+      const createUserResponse = await fetch(
+        `https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=${firebaseConfig.apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            email,
+            password: newPassword,
+            displayName: name,
+            returnSecureToken: true,
+          }),
+        }
+      );
+
+      if (!createUserResponse.ok) {
+        const errorData = await createUserResponse.json();
+        console.error('Erro ao criar usuário no Auth:', errorData);
+        
+        // Se o erro for que email já existe, tentar buscar novamente
+        if (errorData.error?.message === 'EMAIL_EXISTS') {
+          const retryGetUser = await fetch(
+            `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email: [email] }),
+            }
+          );
+          
+          if (retryGetUser.ok) {
+            const retryData = await retryGetUser.json();
+            firebaseUserId = retryData.users?.[0]?.localId;
+          }
+        }
+        
+        if (!firebaseUserId) {
+          return NextResponse.json({ 
+            error: 'Erro ao sincronizar usuário: ' + (errorData.error?.message || 'Erro desconhecido')
+          }, { status: 500 });
+        }
+      } else {
+        const createUserData = await createUserResponse.json();
+        firebaseUserId = createUserData.localId;
+        console.log('Usuário criado no Auth com ID:', firebaseUserId);
+      }
+    } else {
+      firebaseUserId = getUserData.users[0].localId;
+      console.log('Firebase User ID encontrado:', firebaseUserId);
+    }
     
     // Atualizar senha do usuário
     const updatePasswordResponse = await fetch(

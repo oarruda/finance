@@ -128,9 +128,27 @@ export async function POST(request: NextRequest) {
 
     console.log('Usuário deletado do Firestore:', userId);
 
+    // Deletar das collections de roles (roles_master, roles_admin)
+    const rolesMasterUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/roles_master/${userId}`;
+    const rolesAdminUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/roles_admin/${userId}`;
+
+    // Tentar deletar de ambas as collections (pode não existir em ambas)
+    await Promise.all([
+      fetch(rolesMasterUrl, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).catch(() => console.log('Usuário não estava em roles_master')),
+      fetch(rolesAdminUrl, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` },
+      }).catch(() => console.log('Usuário não estava em roles_admin')),
+    ]);
+
+    console.log('Usuário removido das collections de roles');
+
     return NextResponse.json({
       success: true,
-      message: 'Usuário deletado com sucesso do Firebase Auth e Firestore',
+      message: 'Usuário deletado com sucesso do Firebase Auth, Firestore e roles',
     });
   } catch (error: any) {
     console.error('Erro ao deletar usuário:', error);
