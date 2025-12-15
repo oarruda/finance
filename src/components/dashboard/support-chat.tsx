@@ -74,9 +74,32 @@ export function SupportChat() {
 
   // Inicializar áudio de notificação
   React.useEffect(() => {
-    // Criar elemento de áudio com som de sino
-    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFAhGn+DyvmwhBSF+zO/aizsIEl2x6OOPSQwPS6Xf8LRqIQQ2jdXz0n0pBSZ8x/DalEIIFFu06OynVxQHRp/g8r9vHwUfe8/v2404CBBftejgjE0MDVCn4O+0bSAENY3U89F9KgUme8jv2pRBCBRasejspVcUB0ef4PK+cR8FH3vP79qNOQgPX7Xo4I1ND')]); 
-    audioRef.current.volume = 0.5;
+    // Criar elemento de áudio com som de notificação
+    // Usando AudioContext para gerar um som de sino programaticamente
+    const playNotificationSound = () => {
+      try {
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        
+        oscillator.frequency.value = 800;
+        oscillator.type = 'sine';
+        
+        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+        
+        oscillator.start(audioContext.currentTime);
+        oscillator.stop(audioContext.currentTime + 0.5);
+      } catch (error) {
+        console.log('Erro ao criar som de notificação:', error);
+      }
+    };
+    
+    // Armazenar a função no ref
+    (audioRef as any).current = { play: playNotificationSound };
   }, []);
 
   // Carregar conversas (apenas para MASTER)
@@ -252,7 +275,11 @@ export function SupportChat() {
       const newMessage = messages[messages.length - 1];
       // Tocar som apenas se a mensagem não for do próprio usuário e o som estiver ativado
       if (newMessage.senderId !== user?.uid && soundEnabled && audioRef.current) {
-        audioRef.current.play().catch(err => console.log('Erro ao tocar som:', err));
+        try {
+          (audioRef.current as any).play();
+        } catch (err) {
+          console.log('Erro ao tocar som:', err);
+        }
       }
     }
     setLastMessageCount(messages.length);
