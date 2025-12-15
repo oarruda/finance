@@ -57,6 +57,7 @@ export function UserManagementTable() {
   const [updatingId, setUpdatingId] = React.useState<string | null>(null);
   const [deletingId, setDeletingId] = React.useState<string | null>(null);
   const [resendingEmailId, setResendingEmailId] = React.useState<string | null>(null);
+  const [recreatingUserId, setRecreatingUserId] = React.useState<string | null>(null);
   const [togglingStatusId, setTogglingStatusId] = React.useState<string | null>(null);
   const [viewingUser, setViewingUser] = React.useState<User | null>(null);
   const [editingUser, setEditingUser] = React.useState<User | null>(null);
@@ -83,6 +84,16 @@ export function UserManagementTable() {
     console.log('Is loading:', isLoading);
     console.log('Users data:', users);
     console.log('Users count:', users?.length || 0);
+    if (users && users.length > 0) {
+      users.forEach((u, idx) => {
+        console.log(`  User ${idx + 1}:`, {
+          id: u.id,
+          email: u.email,
+          displayName: u.displayName,
+          role: u.role,
+        });
+      });
+    }
     console.log('===================================');
   }, [users, isLoading, currentUser, firestore, usersQuery]);
 
@@ -169,7 +180,7 @@ export function UserManagementTable() {
 
       toast({
         title: 'Sucesso',
-        description: 'Usuário deletado com sucesso do Firebase Auth e Firestore.',
+        description: 'Usuário deletado completamente do Firebase Authentication e Firestore.',
       });
     } catch (error: any) {
       console.error('Erro ao deletar usuário:', error);
@@ -190,16 +201,16 @@ export function UserManagementTable() {
     setIsDeleteDialogOpen(true);
   };
 
-  const handleResendEmail = async (user: User) => {
-    setResendingEmailId(user.id);
+  const handleRecreateUser = async (user: User) => {
+    setRecreatingUserId(user.id);
+    
     try {
-      // Obter token do usuário atual
       const token = await auth?.currentUser?.getIdToken();
       if (!token) {
         throw new Error('Não foi possível obter token de autenticação');
       }
 
-      const response = await fetch('/api/admin/resend-credentials', {
+      const response = await fetch('/api/admin/recreate-user', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -211,6 +222,62 @@ export function UserManagementTable() {
       });
 
       const result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Erro ao recriar usuário');
+      }
+
+      toast({
+        title: 'Usuário recriado!',
+        description: `O usuário ${user.email} foi recriado no Firebase Auth com uma nova senha temporária: ${result.temporaryPassword}`,
+        duration: 10000,
+      });
+    } catch (error: any) {
+      console.error('Erro ao recriar usuário:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao recriar usuário',
+        description: error.message,
+        duration: 8000,
+      });
+    } finally {
+      setRecreatingUserId(null);
+    }
+  };
+
+  const handleResendEmail = async (user: User) => {
+    setResendingEmailId(user.id);
+    try {
+      console.log('=== RESEND CREDENTIALS DEBUG ===');
+      console.log('User object:', user);
+      console.log('User ID:', user.id);
+      console.log('User email:', user.email);
+      console.log('User displayName:', user.displayName);
+      console.log('================================');
+      
+      // Obter token do usuário atual
+      const token = await auth?.currentUser?.getIdToken();
+      if (!token) {
+        throw new Error('Não foi possível obter token de autenticação');
+      }
+
+      const requestBody = {
+        userId: user.id,
+      };
+      console.log('Request body:', JSON.stringify(requestBody));
+
+      const response = await fetch('/api/admin/resend-credentials', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Response status:', response.status);
+      const result = await response.json();
+      console.log('Response body:', result);
 
       if (!response.ok) {
         throw new Error(result.error || 'Erro ao reenviar email');
@@ -339,7 +406,29 @@ export function UserManagementTable() {
           return;
         }
 
+        if (!/[a-zA-Z]/.test(newPassword)) {
+          toast({
+            variant: 'destructive',
+            title: 'Senha inválida',
+            description: 'A senha deve conter pelo menos uma letra.',
+          });
+          setIsSavingEdit(false);
+          return;
+        }
+
+        if (!/[0-9]/.test(newPassword)) {
+          toast({
+            variant: 'destructive',
+            title: 'Senha inválida',
+            description: 'A senha deve conter pelo menos um número.',
+          });
+          setIsSavingEdit(false);
+          return;
+        }
+
+        console.log('🔑 Atualizando senha do usuário:', editingUser.id);
         const idToken = await auth.currentUser?.getIdToken();
+        
         const response = await fetch('/api/admin/update-user-password', {
           method: 'POST',
           headers: {
@@ -352,11 +441,48 @@ export function UserManagementTable() {
           }),
         });
 
+        console.log('📡 Response status:', response.status);
+        console.log('📡 Response URL:', response.url);
+        console.log('📡 Response type:', response.type);
+        const contentType = response.headers.get('content-type');
+        console.log('📡 Content-Type:', contentType);
+
+        // Primeiro, ler o conteúdo bruto
+        const responseText = await response.text();
+        console.log('📡 Response body (primeiros 500 chars):', responseText.substring(0, 500));
+
         if (!response.ok) {
-          const error = await response.json();
-          throw new Error(error.error || 'Erro ao atualizar senha');
+          let errorMessage = 'Erro ao atualizar senha';
+          
+          try {
+            if (contentType && contentType.includes('application/json')) {
+              const error = JSON.parse(responseText);
+              errorMessage = error.error || errorMessage;
+              console.log('❌ Erro JSON:', error);
+            } else {
+              console.error('❌ Resposta não-JSON:', responseText.substring(0, 200));
+              errorMessage = `Erro ${response.status}: O servidor retornou HTML ao invés de JSON`;
+            }
+          } catch (parseError) {
+            console.error('❌ Erro ao parsear resposta:', parseError);
+            console.error('❌ Resposta bruta:', responseText.substring(0, 300));
+            errorMessage = `Erro ${response.status}: Não foi possível processar resposta do servidor`;
+          }
+          
+          throw new Error(errorMessage);
         }
 
+        // Parse da resposta de sucesso
+        let result;
+        try {
+          result = JSON.parse(responseText);
+          console.log('✅ Response data:', result);
+        } catch (parseError) {
+          console.error('❌ Erro ao parsear resposta de sucesso:', parseError);
+          throw new Error('Resposta do servidor inválida');
+        }
+
+        console.log('✅ Senha atualizada com sucesso');
         toast({
           title: 'Senha atualizada',
           description: 'A senha do usuário foi alterada com sucesso.',
@@ -440,7 +566,7 @@ export function UserManagementTable() {
                   <div className="flex items-center gap-3">
                     <Avatar className={user.disabled ? 'opacity-50' : ''}>
                       <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person portrait" />
-                      <AvatarFallback>{user.name ? user.name.charAt(0) : user.email.charAt(0).toUpperCase()}</AvatarFallback>
+                      <AvatarFallback>{user.name ? user.name.charAt(0) : (user.email ? user.email.charAt(0).toUpperCase() : '?')}</AvatarFallback>
                     </Avatar>
                     <div>
                       <div className="flex items-center gap-2">
@@ -512,7 +638,7 @@ export function UserManagementTable() {
                       size="icon"
                       onClick={() => handleResendEmail(user)}
                       disabled={resendingEmailId === user.id}
-                      title="Reenviar credenciais por email"
+                      title="Enviar credenciais por email"
                     >
                       {resendingEmailId === user.id ? (
                         <Loader2 className="h-4 w-4 animate-spin" />

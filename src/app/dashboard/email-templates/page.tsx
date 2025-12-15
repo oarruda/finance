@@ -40,7 +40,7 @@ export default function EmailTemplatesPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [showPreview, setShowPreview] = React.useState(false);
-  const [previewTab, setPreviewTab] = React.useState<'welcome' | 'reset' | 'report'>('welcome');
+  const [previewTab, setPreviewTab] = React.useState<'welcome' | 'reset' | 'credentials' | 'report'>('welcome');
 
   const [welcomeTemplate, setWelcomeTemplate] = React.useState<EmailTemplate>({
     primaryColor: '#667eea',
@@ -84,6 +84,20 @@ export default function EmailTemplatesPage() {
     buttonTextColor: '#ffffff',
   });
 
+  const [credentialsTemplate, setCredentialsTemplate] = React.useState<EmailTemplate>({
+    primaryColor: '#667eea',
+    secondaryColor: '#764ba2',
+    backgroundColor: '#f4f4f4',
+    textColor: '#333333',
+    fontFamily: 'Arial, sans-serif',
+    headerTitle: '🔐 Suas Credenciais de Acesso',
+    bodyText: 'Olá {nome},\n\nSuas credenciais de acesso ao Finance App foram geradas. Use os dados abaixo para fazer login:\n\nEmail: {email}\nSenha Temporária: {senha}\n\n⚠️ Importante: Esta é uma senha temporária. Por questões de segurança, você será solicitado a alterá-la no primeiro acesso.\n\nSe você não solicitou este email, por favor ignore-o ou entre em contato com o administrador.',
+    footerText: 'Este é um email automático. Por favor, não responda a esta mensagem.',
+    companyName: 'Finance App',
+    buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    buttonTextColor: '#ffffff',
+  });
+
   const [reportOptions, setReportOptions] = React.useState({
     showIncomeExpenseChart: true,
     showCategoriesChart: true,
@@ -114,6 +128,7 @@ export default function EmailTemplatesPage() {
             if (data.welcome) setWelcomeTemplate(data.welcome);
             if (data.reset) setResetTemplate(data.reset);
             if (data.report) setReportTemplate(data.report);
+            if (data.credentials) setCredentialsTemplate(data.credentials);
             if (data.reportOptions) setReportOptions(data.reportOptions);
           }
         } catch (error) {
@@ -142,6 +157,7 @@ export default function EmailTemplatesPage() {
         welcome: welcomeTemplate,
         reset: resetTemplate,
         report: reportTemplate,
+        credentials: credentialsTemplate,
         reportOptions: reportOptions,
         updatedAt: new Date(),
       });
@@ -175,7 +191,7 @@ export default function EmailTemplatesPage() {
     return null;
   }
 
-  const generatePreviewHTML = (template: EmailTemplate, type: 'welcome' | 'reset' | 'report') => {
+  const generatePreviewHTML = (template: EmailTemplate, type: 'welcome' | 'reset' | 'report' | 'credentials') => {
     // Substituir variáveis no bodyText com valores de exemplo
     let previewBody = template.bodyText
       .replace(/{nome}/g, 'João Silva')
@@ -315,9 +331,10 @@ export default function EmailTemplatesPage() {
       </div>
 
       <Tabs defaultValue="welcome" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="welcome">Email de Boas-vindas</TabsTrigger>
           <TabsTrigger value="reset">Email de Reset de Senha</TabsTrigger>
+          <TabsTrigger value="credentials">Email de Credenciais</TabsTrigger>
           <TabsTrigger value="report">Email de Relatório</TabsTrigger>
         </TabsList>
 
@@ -689,6 +706,142 @@ export default function EmailTemplatesPage() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="credentials" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações do Email de Credenciais</CardTitle>
+              <CardDescription>
+                Personalize o email enviado quando credenciais são reenviadas aos usuários
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="credentials-primaryColor">Cor Primária</Label>
+                  <Input
+                    id="credentials-primaryColor"
+                    type="color"
+                    value={credentialsTemplate.primaryColor}
+                    onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, primaryColor: e.target.value })}
+                    disabled={!isEditing}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="credentials-secondaryColor">Cor Secundária</Label>
+                  <Input
+                    id="credentials-secondaryColor"
+                    type="color"
+                    value={credentialsTemplate.secondaryColor}
+                    onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, secondaryColor: e.target.value })}
+                    disabled={!isEditing}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="credentials-backgroundColor">Cor de Fundo</Label>
+                  <Input
+                    id="credentials-backgroundColor"
+                    type="color"
+                    value={credentialsTemplate.backgroundColor}
+                    onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, backgroundColor: e.target.value })}
+                    disabled={!isEditing}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="credentials-textColor">Cor do Texto</Label>
+                  <Input
+                    id="credentials-textColor"
+                    type="color"
+                    value={credentialsTemplate.textColor}
+                    onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, textColor: e.target.value })}
+                    disabled={!isEditing}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="credentials-fontFamily">Família de Fontes</Label>
+                <Select
+                  value={credentialsTemplate.fontFamily}
+                  onValueChange={(value) => setCredentialsTemplate({ ...credentialsTemplate, fontFamily: value })}
+                  disabled={!isEditing}
+                >
+                  <SelectTrigger id="credentials-fontFamily">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Arial, sans-serif">Arial</SelectItem>
+                    <SelectItem value="'Times New Roman', serif">Times New Roman</SelectItem>
+                    <SelectItem value="'Courier New', monospace">Courier New</SelectItem>
+                    <SelectItem value="Georgia, serif">Georgia</SelectItem>
+                    <SelectItem value="Verdana, sans-serif">Verdana</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="credentials-headerTitle">Título do Cabeçalho</Label>
+                <Input
+                  id="credentials-headerTitle"
+                  value={credentialsTemplate.headerTitle}
+                  onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, headerTitle: e.target.value })}
+                  disabled={!isEditing}
+                  placeholder="🔐 Suas Credenciais de Acesso"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="credentials-bodyText">Texto do Corpo</Label>
+                <RichTextEditor
+                  value={credentialsTemplate.bodyText}
+                  onChange={(value) => setCredentialsTemplate({ ...credentialsTemplate, bodyText: value })}
+                  disabled={!isEditing}
+                  placeholder="Digite o corpo do email..."
+                />
+                <p className="text-sm text-muted-foreground">
+                  Use as variáveis: {'{nome}'}, {'{email}'}, {'{senha}'}
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="credentials-companyName">Nome da Empresa</Label>
+                <Input
+                  id="credentials-companyName"
+                  value={credentialsTemplate.companyName}
+                  onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, companyName: e.target.value })}
+                  disabled={!isEditing}
+                  placeholder="Finance App"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="credentials-footerText">Texto do Rodapé</Label>
+                <Input
+                  id="credentials-footerText"
+                  value={credentialsTemplate.footerText}
+                  onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, footerText: e.target.value })}
+                  disabled={!isEditing}
+                  placeholder="Este é um email automático..."
+                />
+              </div>
+
+              <Button
+                onClick={() => {
+                  setPreviewTab('credentials');
+                  setShowPreview(true);
+                }}
+                variant="outline"
+                className="w-full"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Visualizar Preview
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="report" className="space-y-4">
           <Card>
             <CardHeader>
@@ -978,13 +1131,13 @@ export default function EmailTemplatesPage() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Preview do Email - {previewTab === 'welcome' ? 'Boas-vindas' : previewTab === 'reset' ? 'Reset de Senha' : 'Relatório de Transações'}
+              Preview do Email - {previewTab === 'welcome' ? 'Boas-vindas' : previewTab === 'reset' ? 'Reset de Senha' : previewTab === 'credentials' ? 'Credenciais' : 'Relatório de Transações'}
             </DialogTitle>
           </DialogHeader>
           <div className="border rounded-lg overflow-hidden">
             <iframe
               srcDoc={generatePreviewHTML(
-                previewTab === 'welcome' ? welcomeTemplate : previewTab === 'reset' ? resetTemplate : reportTemplate,
+                previewTab === 'welcome' ? welcomeTemplate : previewTab === 'reset' ? resetTemplate : previewTab === 'credentials' ? credentialsTemplate : reportTemplate,
                 previewTab
               )}
               className="w-full h-[600px] border-0"

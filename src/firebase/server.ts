@@ -31,9 +31,6 @@ export function initializeFirebaseAdmin() {
       }
 
       // Desenvolvimento: usar Application Default Credentials
-      // Isso funciona se você estiver autenticado via `gcloud auth application-default login`
-      // ou se estiver rodando no Firebase/Google Cloud
-      console.log('Inicializando Firebase Admin com Application Default Credentials');
       return initializeApp({
         projectId: firebaseConfig.projectId,
       });

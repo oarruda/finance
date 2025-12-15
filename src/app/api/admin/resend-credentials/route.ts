@@ -1,46 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { firebaseConfig } from '@/firebase/config';
+import { getServerSdks } from '@/firebase/server';
 import { Resend } from 'resend';
 
-export async function POST(request: NextRequest) {
-  try {
-    console.log('🚀 Iniciando resend-credentials');
-    console.log('📦 Firebase Config:', {
-      apiKey: firebaseConfig.apiKey ? 'Definido' : 'Indefinido',
-      projectId: firebaseConfig.projectId
-    });
+export const dynamic = 'force-dynamic';
 
-    // Obter token do header para verificar autenticação
+function generateTemporaryPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+  const length = 12;
+  let password = '';
+  
+  // Garantir pelo menos 1 letra maiúscula, 1 minúscula e 1 número
+  password += 'ABCDEFGHJKLMNPQRSTUVWXYZ'[Math.floor(Math.random() * 25)];
+  password += 'abcdefghjkmnpqrstuvwxyz'[Math.floor(Math.random() * 23)];
+  password += '23456789'[Math.floor(Math.random() * 8)];
+  
+  // Completar o resto
+  for (let i = 3; i < length; i++) {
+    password += chars[Math.floor(Math.random() * chars.length)];
+  }
+  
+  // Embaralhar
+  return password.split('').sort(() => Math.random() - 0.5).join('');
+}
+
+export async function POST(request: NextRequest) {
+  console.log('📧 API: Reenviando credenciais');
+  
+  try {
+    // Inicializar Firebase Admin SDK
+    const { auth, firestore: db } = getServerSdks();
+
+    // Validar autenticação
     const authHeader = request.headers.get('authorization');
-    
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ Header de autenticação inválido');
+    if (!authHeader?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
-    const token = authHeader.split('Bearer ')[1];
-    console.log('✅ Token obtido');
+    const token = authHeader.replace('Bearer ', '');
     
-    // Verificar autenticação via REST API
-    const verifyResponse = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: token }),
-      }
-    );
+    // Verificar token
+    const decodedToken = await auth.verifyIdToken(token);
+    console.log('✅ Token validado');
 
-    if (!verifyResponse.ok) {
-      return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
-    }
-
-    const verifyData = await verifyResponse.json();
-    const currentUserId = verifyData.users[0].localId;
-
-    // Obter dados do body
-    const body = await request.json();
-    const { userId } = body;
+    // Obter dados
+    const bodyData = await request.json();
+    const userId = bodyData.userId;
 
     if (!userId) {
       return NextResponse.json({ 
@@ -48,288 +52,201 @@ export async function POST(request: NextRequest) {
       }, { status: 400 });
     }
 
-    console.log('========================================');
-    console.log('🔐 Reenviando credenciais');
-    console.log('User ID:', userId);
-    console.log('========================================');
+    console.log(`📧 Reenviando credenciais para usuário: ${userId}`);
 
-    // Buscar dados do usuário no Firestore usando REST API
-    const userFirestoreUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}?key=${firebaseConfig.apiKey}`;
+    // Buscar usuário no Firestore
+    const userDocRef = db.collection('users').doc(userId);
+    const userDoc = await userDocRef.get();
     
-    console.log('🔍 Buscando usuário em:', userFirestoreUrl);
-    const userResponse = await fetch(userFirestoreUrl);
-
-    console.log('📡 Status da resposta:', userResponse.status);
-
-    if (!userResponse.ok) {
-      const errorText = await userResponse.text();
-      console.error('❌ Erro ao buscar usuário no Firestore:', errorText);
+    if (!userDoc.exists) {
       return NextResponse.json({ 
-        error: 'Usuário não encontrado no Firestore',
-        details: errorText
+        error: 'Usuário não encontrado no Firestore'
       }, { status: 404 });
     }
 
-    const userDoc = await userResponse.json();
-    console.log('📄 Documento do usuário:', JSON.stringify(userDoc, null, 2));
-    
-    if (!userDoc.fields) {
-      console.error('❌ Documento do usuário não tem fields');
-      return NextResponse.json({ 
-        error: 'Documento do usuário inválido' 
-      }, { status: 404 });
-    }
-
-    const userData = userDoc.fields;
-    
-    const firstName = userData?.firstName?.stringValue || '';
-    const lastName = userData?.lastName?.stringValue || '';
-    const name = firstName && lastName ? `${firstName} ${lastName}` : (userData?.name?.stringValue || userData?.email?.stringValue || '');
-    const email = userData?.email?.stringValue || '';
+    const userData = userDoc.data();
+    const email = userData?.email;
+    const displayName = userData?.displayName || userData?.name || email?.split('@')[0];
 
     if (!email) {
-      console.error('❌ Email do usuário não encontrado');
       return NextResponse.json({ 
-        error: 'Email do usuário não encontrado' 
+        error: 'Email do usuário não encontrado'
       }, { status: 404 });
     }
 
-    console.log('✅ Usuário encontrado:', email);
+    // Gerar senha temporária
+    const temporaryPassword = generateTemporaryPassword();
+    console.log('🔐 Senha temporária gerada');
 
-    // Gerar nova senha temporária
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
-    let newPassword = '';
-    for (let i = 0; i < 12; i++) {
-      newPassword += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-
-    console.log('🔑 Gerando nova senha temporária');
-
-    // Atualizar senha usando Firebase REST API
-    console.log('Atualizando senha do usuário...');
-    
-    const updatePasswordResponse = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:setAccountInfo?key=${firebaseConfig.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          localId: userId,
-          password: newPassword,
-          returnSecureToken: false,
-        }),
-      }
-    );
-
-    if (!updatePasswordResponse.ok) {
-      const errorData = await updatePasswordResponse.json();
-      console.error('❌ Erro ao atualizar senha:', errorData);
-      return NextResponse.json({ 
-        error: 'Erro ao atualizar senha: ' + (errorData.error?.message || 'Erro desconhecido')
-      }, { status: 500 });
-    }
-
-    console.log('✅ Senha atualizada com sucesso');
-    console.log('Marcando senha como temporária no Firestore...');
-
-    // Marcar senha como temporária no Firestore usando REST API
-    const updateUserUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}?updateMask.fieldPaths=isTemporaryPassword&key=${firebaseConfig.apiKey}`;
-    
-    await fetch(updateUserUrl, {
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        fields: {
-          isTemporaryPassword: { booleanValue: true },
-        },
-      }),
-    });
-    console.log('✅ Senha marcada como temporária');
-
-    console.log('Buscando configurações de email...');
-
-    // Buscar configurações do Resend do usuário MASTER usando REST API
-    const masterSettingsUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${currentUserId}?key=${firebaseConfig.apiKey}`;
-    
-    let resendApiKey = process.env.RESEND_API_KEY || '';
-    let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
-    let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
-
+    // Verificar se usuário existe no Auth
+    let userExists = false;
     try {
-      const masterResponse = await fetch(masterSettingsUrl);
-
-      if (masterResponse.ok) {
-        const masterDoc = await masterResponse.json();
-        const fields = masterDoc.fields || {};
-        
-        if (fields.resendApiKey?.stringValue) resendApiKey = fields.resendApiKey.stringValue;
-        if (fields.resendFromEmail?.stringValue) resendFromEmail = fields.resendFromEmail.stringValue;
-        if (fields.appUrl?.stringValue) appUrl = fields.appUrl.stringValue;
+      await auth.getUser(userId);
+      userExists = true;
+      console.log('✅ Usuário existe no Auth');
+    } catch (error: any) {
+      if (error.code === 'auth/user-not-found') {
+        console.log('⚠️  Usuário não existe no Auth, será criado');
+      } else {
+        throw error;
       }
-    } catch (err) {
-      console.error('Erro ao buscar configurações do Resend:', err);
+    }
+
+    // Atualizar ou criar usuário no Auth
+    if (userExists) {
+      await auth.updateUser(userId, {
+        password: temporaryPassword,
+      });
+      console.log('✅ Senha atualizada no Auth');
+    } else {
+      await auth.createUser({
+        uid: userId,
+        email: email,
+        password: temporaryPassword,
+        displayName: displayName,
+      });
+      console.log('✅ Usuário criado no Auth');
+    }
+
+    // Atualizar flag no Firestore
+    await userDocRef.update({
+      isTemporaryPassword: true,
+    });
+
+    // Buscar configurações de email do Firestore
+    console.log('📧 Buscando configurações de email...');
+    let resendApiKey = process.env.RESEND_API_KEY || '';
+    let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Finance App <noreply@finances.rafaelarruda.com.br>';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
+
+    // Tentar buscar do usuário MASTER atual
+    const currentUserDoc = await db.collection('users').doc(decodedToken.uid).get();
+    if (currentUserDoc.exists) {
+      const currentUserData = currentUserDoc.data();
+      if (currentUserData?.resendApiKey) resendApiKey = currentUserData.resendApiKey;
+      if (currentUserData?.resendFromEmail) resendFromEmail = currentUserData.resendFromEmail;
     }
 
     if (!resendApiKey) {
       return NextResponse.json({ 
-        error: 'Serviço de email não configurado. Configure a API Key do Resend nas Configurações de Sistema' 
+        error: 'Serviço de email não configurado. Configure a API Key do Resend nas Configurações de Sistema.' 
       }, { status: 500 });
     }
 
-    // Inicializar Resend
-    const resend = new Resend(resendApiKey);
-
-    // Buscar template personalizado do Firestore usando REST API
+    // Buscar template personalizado do Firestore
     let template = {
       primaryColor: '#667eea',
       secondaryColor: '#764ba2',
       backgroundColor: '#f4f4f4',
       textColor: '#333333',
       fontFamily: 'Arial, sans-serif',
-      headerTitle: '🔐 Nova Senha Temporária',
-      bodyText: 'Olá {nome},\n\nUma nova senha temporária foi gerada para sua conta. Abaixo estão suas credenciais de acesso:\n\nEmail: {email}\nNova Senha Temporária: {senha}\n\n⚠️ Importante: Esta é uma senha temporária. Por motivos de segurança, recomendamos que você altere sua senha após fazer login.',
+      headerTitle: '🔐 Suas Credenciais de Acesso',
+      bodyText: 'Olá {nome},\n\nSuas credenciais de acesso ao Finance App foram geradas. Use os dados abaixo para fazer login:\n\nEmail: {email}\nSenha Temporária: {senha}\n\n⚠️ Importante: Esta é uma senha temporária. Por questões de segurança, você será solicitado a alterá-la no primeiro acesso.\n\nSe você não solicitou este email, por favor ignore-o ou entre em contato com o administrador.',
       footerText: 'Este é um email automático. Por favor, não responda a esta mensagem.',
-      companyName: 'Sistema Financeiro',
-      buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-      buttonTextColor: '#ffffff',
+      companyName: 'Finance App',
     };
 
-    try {
-      console.log('Buscando template de email...');
-      const templateUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/emailTemplates/${currentUserId}?key=${firebaseConfig.apiKey}`;
-      const templateResponse = await fetch(templateUrl);
-
-      if (templateResponse.ok) {
-        const templateDoc = await templateResponse.json();
-        const fields = templateDoc.fields || {};
-        
-        if (fields.reset?.mapValue?.fields) {
-          const resetFields = fields.reset.mapValue.fields;
-          if (resetFields.primaryColor?.stringValue) template.primaryColor = resetFields.primaryColor.stringValue;
-          if (resetFields.secondaryColor?.stringValue) template.secondaryColor = resetFields.secondaryColor.stringValue;
-          if (resetFields.backgroundColor?.stringValue) template.backgroundColor = resetFields.backgroundColor.stringValue;
-          if (resetFields.textColor?.stringValue) template.textColor = resetFields.textColor.stringValue;
-          if (resetFields.fontFamily?.stringValue) template.fontFamily = resetFields.fontFamily.stringValue;
-          if (resetFields.headerTitle?.stringValue) template.headerTitle = resetFields.headerTitle.stringValue;
-          if (resetFields.bodyText?.stringValue) template.bodyText = resetFields.bodyText.stringValue;
-          if (resetFields.footerText?.stringValue) template.footerText = resetFields.footerText.stringValue;
-          if (resetFields.companyName?.stringValue) template.companyName = resetFields.companyName.stringValue;
-          if (resetFields.buttonColor?.stringValue) template.buttonColor = resetFields.buttonColor.stringValue;
-          if (resetFields.buttonTextColor?.stringValue) template.buttonTextColor = resetFields.buttonTextColor.stringValue;
-          console.log('✅ Template personalizado de reset carregado');
-        }
+    const templateDoc = await db.collection('emailTemplates').doc(decodedToken.uid).get();
+    if (templateDoc.exists) {
+      const templatesData = templateDoc.data();
+      if (templatesData?.credentials) {
+        template = { ...template, ...templatesData.credentials };
       }
-    } catch (err) {
-      console.log('⚠️  Usando template padrão (erro ao carregar personalizado):', err);
     }
 
-    // Substituir variáveis no texto do template (senha SEMPRE visível)
-    const emailBody = template.bodyText
-      .replace(/{nome}/g, `<strong style="color: ${template.primaryColor};">${name}</strong>`)
-      .replace(/{email}/g, `<strong style="color: ${template.textColor};">${email}</strong>`)
-      .replace(/{senha}/g, `<span style="font-family: 'Courier New', Courier, monospace; font-size: 20px; font-weight: bold; color: ${template.primaryColor}; letter-spacing: 2px; background-color: #f0f0f0; padding: 8px 12px; border-radius: 4px; display: inline-block; -webkit-text-security: none !important; text-security: none !important;">${newPassword}</span>`)
-      .replace(/{link}/g, appUrl)
+    // Inicializar Resend com a chave configurada
+    const resend = new Resend(resendApiKey);
+
+    // Substituir variáveis no template
+    const bodyText = template.bodyText
+      .replace(/{nome}/g, displayName)
+      .replace(/{email}/g, email)
+      .replace(/{senha}/g, temporaryPassword)
       .replace(/\n/g, '<br>');
 
-    const emailHtml = `
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-  <head>
-    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="format-detection" content="telephone=no" />
-    <title>${template.headerTitle}</title>
-    <style type="text/css">
-      @media only screen and (max-width: 600px) {
-        .content-wrapper { width: 100% !important; }
-        .mobile-padding { padding: 20px 15px !important; }
-        .mobile-text { font-size: 14px !important; }
-        .mobile-title { font-size: 24px !important; }
-      }
-    </style>
-  </head>
-  <body style="margin: 0; padding: 0; background-color: ${template.backgroundColor}; -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%;">
-    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: ${template.backgroundColor}; min-width: 100%;">
-      <tr>
-        <td align="center" style="padding: 10px;">
-          <table border="0" cellpadding="0" cellspacing="0" width="100%" class="content-wrapper" style="background-color: #ffffff; max-width: 600px;">
-            <!-- Header -->
-            <tr>
-              <td align="center" bgcolor="${template.primaryColor}" class="mobile-padding" style="padding: 30px 20px; background-color: ${template.primaryColor};">
-                <h1 class="mobile-title" style="margin: 0; font-family: Arial, Helvetica, sans-serif; font-size: 26px; font-weight: bold; color: #ffffff; line-height: 1.3; word-wrap: break-word;">${template.headerTitle}</h1>
-              </td>
-            </tr>
-            <!-- Body -->
-            <tr>
-              <td class="mobile-padding mobile-text" style="padding: 30px 20px; font-family: Arial, Helvetica, sans-serif; font-size: 15px; line-height: 1.6; color: ${template.textColor}; word-wrap: break-word; overflow-wrap: break-word;">
-                <div style="max-width: 100%; overflow-wrap: break-word;">
-                  ${emailBody}
-                </div>
-                
-                <!-- Button -->
-                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 20px 0;">
-                  <tr>
-                    <td align="center" style="padding: 10px 0;">
-                      <table border="0" cellpadding="0" cellspacing="0">
-                        <tr>
-                          <td align="center" bgcolor="${template.primaryColor}" style="border-radius: 6px; background-color: ${template.primaryColor};">
-                            <a href="${appUrl}" target="_blank" style="display: inline-block; padding: 14px 30px; font-family: Arial, Helvetica, sans-serif; font-size: 16px; font-weight: bold; color: #ffffff !important; text-decoration: none; border-radius: 6px;">Acessar Sistema</a>
-                          </td>
-                        </tr>
-                      </table>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-            <!-- Footer -->
-            <tr>
-              <td bgcolor="#f8f9fa" class="mobile-padding" style="padding: 20px; background-color: #f8f9fa; border-top: 1px solid #e9ecef;">
-                <table border="0" cellpadding="0" cellspacing="0" width="100%">
-                  <tr>
-                    <td align="center" style="font-family: Arial, Helvetica, sans-serif; font-size: 12px; line-height: 1.5; color: #666666; word-wrap: break-word;">
-                      <p style="margin: 0 0 8px 0;">${template.footerText}</p>
-                      <p style="margin: 0;">© ${new Date().getFullYear()} ${template.companyName}. Todos os direitos reservados.</p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
-</html>
-    `;
-
+    // Enviar email com credenciais
+    console.log('📧 Enviando email...');
     const { data, error } = await resend.emails.send({
       from: resendFromEmail,
-      to: [email],
-      subject: '🔐 Nova Senha Temporária - Sistema Financeiro',
-      html: emailHtml,
+      to: email,
+      subject: `${template.headerTitle.replace(/[^\w\s-]/g, '')} - ${template.companyName}`,
+      html: `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <style>
+              body { font-family: ${template.fontFamily}; line-height: 1.6; color: ${template.textColor}; background-color: ${template.backgroundColor}; }
+              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+              .header { background: linear-gradient(135deg, ${template.primaryColor} 0%, ${template.secondaryColor} 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
+              .content { background: white; padding: 30px; border-radius: 0 0 10px 10px; }
+              .credentials { background: ${template.backgroundColor}; padding: 20px; border-radius: 8px; border-left: 4px solid ${template.primaryColor}; margin: 20px 0; }
+              .credential-item { margin: 15px 0; }
+              .credential-label { font-weight: bold; color: ${template.primaryColor}; }
+              .credential-value { font-family: 'Courier New', monospace; background: #f0f0f0; padding: 8px 12px; border-radius: 4px; display: inline-block; margin-top: 5px; }
+              .button { display: inline-block; background: ${template.primaryColor}; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+              .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
+            </style>
+          </head>
+          <body>
+            <div class="container">
+              <div class="header">
+                <h1>${template.headerTitle}</h1>
+              </div>
+              <div class="content">
+                <p>${bodyText}</p>
+                
+                <div class="credentials">
+                  <div class="credential-item">
+                    <div class="credential-label">📧 Email:</div>
+                    <div class="credential-value">${email}</div>
+                  </div>
+                  <div class="credential-item">
+                    <div class="credential-label">🔑 Senha Temporária:</div>
+                    <div class="credential-value">${temporaryPassword}</div>
+                  </div>
+                </div>
+                
+                <div style="text-align: center;">
+                  <a href="${appUrl}" class="button">
+                    Acessar ${template.companyName}
+                  </a>
+                </div>
+              </div>
+              <div class="footer">
+                <p>${template.footerText}</p>
+                <p>© ${new Date().getFullYear()} ${template.companyName}. Todos os direitos reservados.</p>
+              </div>
+            </div>
+          </body>
+        </html>
+      `,
     });
 
     if (error) {
-      console.error('Erro ao enviar email:', error);
+      console.error('❌ Erro ao enviar email:', error);
       return NextResponse.json({ 
-        error: 'Senha atualizada mas houve erro ao enviar email: ' + error.message 
+        error: 'Senha atualizada, mas falha ao enviar email'
       }, { status: 500 });
     }
 
-    console.log('Email enviado com sucesso para:', email);
+    console.log('✅ Email enviado com sucesso');
 
-    return NextResponse.json({
-      success: true,
-      message: 'Nova senha gerada e enviada por email com sucesso',
-      email: email,
-    });
-  } catch (error: any) {
-    console.error('Erro ao reenviar credenciais:', error);
     return NextResponse.json({ 
-      error: 'Erro ao reenviar credenciais: ' + (error.message || 'Erro desconhecido')
-    }, { status: 500 });
+      success: true,
+      message: 'Credenciais enviadas por email com sucesso'
+    });
+
+  } catch (error) {
+    console.error('❌ ERRO:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Erro desconhecido';
+    
+    return NextResponse.json({ 
+      success: false,
+      error: `Erro ao processar requisição: ${errorMessage}`
+    }, { 
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
   }
 }

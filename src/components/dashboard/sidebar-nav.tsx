@@ -394,17 +394,6 @@ export function SidebarNav() {
               </SidebarMenuButton>
             </SidebarMenuItem>
           )}
-          
-          {/* Support */}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              tooltip={t('header.support')}
-              className="justify-start transition-all duration-300 hover:scale-105 hover:translate-x-1 hover:bg-primary/10"
-            >
-              <HelpCircle className="shrink-0 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
-              <span className="transition-all duration-300">{t('header.support')}</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
         </SidebarMenu>
 
         {/* Daily Proverb Card */}

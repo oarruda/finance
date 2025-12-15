@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { firebaseConfig } from '@/firebase/config';
+import { getServerSdks } from '@/firebase/server';
 import { Resend } from 'resend';
+
+export const dynamic = 'force-dynamic';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,68 +14,71 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.split('Bearer ')[1];
+    const { auth, firestore } = getServerSdks();
     
-    // Verificar autenticação via REST API
-    const verifyResponse = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken: token }),
-      }
-    );
-
-    if (!verifyResponse.ok) {
+    // Verificar autenticação usando Firebase Admin SDK
+    let decodedToken;
+    try {
+      decodedToken = await auth.verifyIdToken(token);
+    } catch (error) {
       return NextResponse.json({ error: 'Token inválido' }, { status: 401 });
     }
 
-    const verifyData = await verifyResponse.json();
-    const userId = verifyData.users[0].localId;
+    const userId = decodedToken.uid;
 
-    // Buscar dados do usuário
-    const userUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}?key=${firebaseConfig.apiKey}`;
-    const userResponse = await fetch(userUrl);
-    const userDoc = await userResponse.json();
-    const userData = userDoc.fields;
-    
-    const name = userData?.name?.stringValue || userData?.email?.stringValue || 'Usuário';
-    const email = userData?.email?.stringValue || '';
+    // Buscar dados do usuário usando Admin SDK
+    const userDoc = await firestore.collection('users').doc(userId).get();
+    if (!userDoc.exists) {
+      return NextResponse.json({ error: 'Usuário não encontrado' }, { status: 404 });
+    }
+
+    const userData = userDoc.data();
+    const name = userData?.name || userData?.displayName || userData?.email || 'Usuário';
+    const email = userData?.email || '';
 
     if (!email) {
+      // Tentar buscar do Authentication
+      try {
+        const authUser = await auth.getUser(userId);
+        if (authUser.email) {
+          // Atualizar Firestore com o email do Authentication
+          await firestore.collection('users').doc(userId).update({ email: authUser.email });
+          return NextResponse.json({ 
+            error: 'Email atualizado. Por favor, tente novamente.' 
+          }, { status: 400 });
+        }
+      } catch (authError) {
+        console.error('Erro ao buscar usuário do Authentication:', authError);
+      }
       return NextResponse.json({ error: 'Email do usuário não encontrado' }, { status: 404 });
     }
 
-    // Buscar transações do último período
+    // Buscar transações do último período usando Admin SDK
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
-    // Buscar todas as transações do usuário (simplificado)
-    const transactionsUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}/transactions?key=${firebaseConfig.apiKey}`;
-    const transactionsResponse = await fetch(transactionsUrl);
-    const transactionsData = await transactionsResponse.json();
+    const transactionsSnapshot = await firestore.collection('users').doc(userId).collection('transactions').get();
 
     let totalIncome = 0;
     let totalExpenses = 0;
     let transactionCount = 0;
     const categoryTotals: { [key: string]: number } = {};
 
-    if (transactionsData.documents) {
-      transactionsData.documents.forEach((doc: any) => {
-        const fields = doc.fields;
-        const amount = fields.amount?.doubleValue || fields.amount?.integerValue || 0;
-        const type = fields.type?.stringValue;
-        const category = fields.category?.stringValue || 'Sem categoria';
+    transactionsSnapshot.forEach((doc: any) => {
+      const data = doc.data();
+      const amount = data.amount || 0;
+      const type = data.type;
+      const category = data.category || 'Sem categoria';
 
-        transactionCount++;
+      transactionCount++;
 
-        if (type === 'income') {
-          totalIncome += amount;
-        } else if (type === 'expense') {
-          totalExpenses += amount;
-          categoryTotals[category] = (categoryTotals[category] || 0) + amount;
-        }
-      });
-    }
+      if (type === 'income') {
+        totalIncome += amount;
+      } else if (type === 'expense') {
+        totalExpenses += amount;
+        categoryTotals[category] = (categoryTotals[category] || 0) + amount;
+      }
+    });
 
     const balance = totalIncome - totalExpenses;
 
@@ -82,98 +87,88 @@ export async function POST(request: NextRequest) {
       .sort(([, a], [, b]) => b - a)
       .slice(0, 5);
 
-    // Buscar conversões de moeda
-    const conversionsUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}/wiseTransactions?key=${firebaseConfig.apiKey}`;
-    const conversionsResponse = await fetch(conversionsUrl);
-    const conversionsData = await conversionsResponse.json();
+    // Buscar conversões de moeda usando Admin SDK
+    const conversionsSnapshot = await firestore.collection('users').doc(userId).collection('wiseTransactions').get();
 
     let totalConversions = 0;
     let totalConvertedValue = 0;
     let totalFees = 0;
     const conversionsByPair: { [key: string]: { count: number; value: number } } = {};
 
-    if (conversionsData.documents) {
-      conversionsData.documents.forEach((doc: any) => {
-        const fields = doc.fields;
-        const sourceAmount = fields.sourceAmount?.doubleValue || fields.sourceAmount?.integerValue || 0;
-        const targetAmount = fields.targetAmount?.doubleValue || fields.targetAmount?.integerValue || 0;
-        const fee = fields.fee?.doubleValue || fields.fee?.integerValue || 0;
-        const sourceCurrency = fields.sourceCurrency?.stringValue || 'BRL';
-        const targetCurrency = fields.targetCurrency?.stringValue || 'EUR';
-        
-        totalConversions++;
-        totalConvertedValue += targetAmount;
-        totalFees += fee;
-        
-        const pair = `${sourceCurrency} → ${targetCurrency}`;
-        if (!conversionsByPair[pair]) {
-          conversionsByPair[pair] = { count: 0, value: 0 };
-        }
-        conversionsByPair[pair].count++;
-        conversionsByPair[pair].value += targetAmount;
-      });
-    }
+    conversionsSnapshot.forEach((doc: any) => {
+      const data = doc.data();
+      const sourceAmount = data.sourceAmount || 0;
+      const targetAmount = data.targetAmount || 0;
+      const fee = data.fee || 0;
+      const sourceCurrency = data.sourceCurrency || 'BRL';
+      const targetCurrency = data.targetCurrency || 'EUR';
+      
+      totalConversions++;
+      totalConvertedValue += targetAmount;
+      totalFees += fee;
+      
+      const pair = `${sourceCurrency} → ${targetCurrency}`;
+      if (!conversionsByPair[pair]) {
+        conversionsByPair[pair] = { count: 0, value: 0 };
+      }
+      conversionsByPair[pair].count++;
+      conversionsByPair[pair].value += targetAmount;
+    });
 
     const averageConversionRate = totalConversions > 0 ? (totalFees / totalConversions) : 0;
     const topConversionPairs = Object.entries(conversionsByPair)
       .sort(([, a], [, b]) => b.value - a.value)
       .slice(0, 5);
 
-    // Buscar configurações de email
+    // Buscar configurações de email usando Admin SDK
     let resendApiKey = process.env.RESEND_API_KEY || '';
     let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
-    const masterSettingsUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}?key=${firebaseConfig.apiKey}`;
     try {
-      const masterResponse = await fetch(masterSettingsUrl);
-      if (masterResponse.ok) {
-        const masterDoc = await masterResponse.json();
-        const fields = masterDoc.fields || {};
-        if (fields.resendApiKey?.stringValue) resendApiKey = fields.resendApiKey.stringValue;
-        if (fields.resendFromEmail?.stringValue) resendFromEmail = fields.resendFromEmail.stringValue;
+      const masterDoc = await firestore.collection('users').doc(userId).get();
+      if (masterDoc.exists) {
+        const data = masterDoc.data();
+        if (data?.resendApiKey) resendApiKey = data.resendApiKey;
+        if (data?.resendFromEmail) resendFromEmail = data.resendFromEmail;
       }
     } catch (err) {
       console.error('Erro ao buscar configurações do Resend:', err);
     }
 
-    // Buscar template personalizado de relatório
+    // Buscar template personalizado de relatório usando Admin SDK
     let reportTemplate: any = null;
     let reportOptions: any = null;
     try {
-      const templateUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/emailTemplates/${userId}?key=${firebaseConfig.apiKey}`;
-      const templateResponse = await fetch(templateUrl);
-      if (templateResponse.ok) {
-        const templateDoc = await templateResponse.json();
-        const fields = templateDoc.fields || {};
+      const templateDoc = await firestore.collection('emailTemplates').doc(userId).get();
+      if (templateDoc.exists) {
+        const data = templateDoc.data();
         
         // Extrair template de relatório se existir
-        if (fields.report?.mapValue?.fields) {
-          const reportFields = fields.report.mapValue.fields;
+        if (data?.report) {
           reportTemplate = {
-            primaryColor: reportFields.primaryColor?.stringValue || '#667eea',
-            secondaryColor: reportFields.secondaryColor?.stringValue || '#764ba2',
-            backgroundColor: reportFields.backgroundColor?.stringValue || '#f4f4f4',
-            textColor: reportFields.textColor?.stringValue || '#333333',
-            fontFamily: reportFields.fontFamily?.stringValue || 'Arial, sans-serif',
-            headerTitle: reportFields.headerTitle?.stringValue || '📊 Relatório de Transações',
-            bodyText: reportFields.bodyText?.stringValue || '',
-            footerText: reportFields.footerText?.stringValue || 'Este é um email automático de relatório.',
-            companyName: reportFields.companyName?.stringValue || 'Sistema Financeiro',
+            primaryColor: data.report.primaryColor || '#667eea',
+            secondaryColor: data.report.secondaryColor || '#764ba2',
+            backgroundColor: data.report.backgroundColor || '#f4f4f4',
+            textColor: data.report.textColor || '#333333',
+            fontFamily: data.report.fontFamily || 'Arial, sans-serif',
+            headerTitle: data.report.headerTitle || '📊 Relatório de Transações',
+            bodyText: data.report.bodyText || '',
+            footerText: data.report.footerText || 'Este é um email automático de relatório.',
+            companyName: data.report.companyName || 'Sistema Financeiro',
           };
         }
         
         // Extrair opções de relatório se existirem
-        if (fields.reportOptions?.mapValue?.fields) {
-          const optFields = fields.reportOptions.mapValue.fields;
+        if (data?.reportOptions) {
           reportOptions = {
-            showIncomeExpenseChart: optFields.showIncomeExpenseChart?.booleanValue !== false,
-            showCategoriesChart: optFields.showCategoriesChart?.booleanValue !== false,
-            showTopCategories: optFields.showTopCategories?.booleanValue !== false,
-            showMonthlyComparison: optFields.showMonthlyComparison?.booleanValue !== false,
-            includePeriodSummary: optFields.includePeriodSummary?.booleanValue !== false,
-            showConversionData: optFields.showConversionData?.booleanValue !== false,
-            showConversionChart: optFields.showConversionChart?.booleanValue !== false,
+            showIncomeExpenseChart: data.reportOptions.showIncomeExpenseChart !== false,
+            showCategoriesChart: data.reportOptions.showCategoriesChart !== false,
+            showTopCategories: data.reportOptions.showTopCategories !== false,
+            showMonthlyComparison: data.reportOptions.showMonthlyComparison !== false,
+            includePeriodSummary: data.reportOptions.includePeriodSummary !== false,
+            showConversionData: data.reportOptions.showConversionData !== false,
+            showConversionChart: data.reportOptions.showConversionChart !== false,
           };
         }
       }

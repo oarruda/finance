@@ -58,7 +58,7 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [selectedAvatarId, setSelectedAvatarId] = React.useState<string>('user-1');
-  const [emailFrequency, setEmailFrequency] = React.useState<'never' | 'biweekly' | 'monthly'>('never');
+  const [emailFrequency, setEmailFrequency] = React.useState<'never' | 'biweekly' | 'monthly' | 'quarterly' | 'semiannual' | 'ninemonths' | 'yearly'>('never');
   const [isSendingTest, setIsSendingTest] = React.useState(false);
   const [formData, setFormData] = React.useState({
     firstName: '',
@@ -702,13 +702,21 @@ export default function ProfilePage() {
               <SelectContent>
                 <SelectItem value="never">Nunca</SelectItem>
                 <SelectItem value="biweekly">A cada 15 dias</SelectItem>
-                <SelectItem value="monthly">Mensal</SelectItem>
+                <SelectItem value="monthly">1 mês</SelectItem>
+                <SelectItem value="quarterly">3 meses</SelectItem>
+                <SelectItem value="semiannual">6 meses</SelectItem>
+                <SelectItem value="ninemonths">9 meses</SelectItem>
+                <SelectItem value="yearly">1 ano</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground">
               {emailFrequency === 'never' && 'Você não receberá relatórios por email.'}
               {emailFrequency === 'biweekly' && 'Você receberá um relatório a cada 15 dias com suas transações.'}
               {emailFrequency === 'monthly' && 'Você receberá um relatório mensal com suas transações.'}
+              {emailFrequency === 'quarterly' && 'Você receberá um relatório a cada 3 meses com suas transações.'}
+              {emailFrequency === 'semiannual' && 'Você receberá um relatório a cada 6 meses com suas transações.'}
+              {emailFrequency === 'ninemonths' && 'Você receberá um relatório a cada 9 meses com suas transações.'}
+              {emailFrequency === 'yearly' && 'Você receberá um relatório anual com suas transações.'}
             </p>
           </div>
 
