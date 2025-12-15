@@ -249,10 +249,10 @@ service cloud.firestore {
      * Masters can read and manage all conversations
      */
     match /supportConversations/{conversationId} {
-      allow get: if isSignedIn() && (isOwner(conversationId) || isMaster());
-      allow list: if isMaster();
+      allow get: if isSignedIn() && (isOwner(resource.data.userId) || isMaster());
+      allow list: if isSignedIn();
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && (isOwner(conversationId) || isMaster());
+      allow update: if isSignedIn() && (isOwner(resource.data.userId) || isMaster());
       allow delete: if isMaster();
     }
 

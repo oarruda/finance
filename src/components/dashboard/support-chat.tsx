@@ -12,8 +12,8 @@ import { useUser, useFirebase } from '@/firebase';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useToast } from '@/hooks/use-toast';
 import { MessageCircle, Send, Loader2, User, Users, CheckCircle, Bell, BellOff, Trash2, XCircle, Clock, Archive } from 'lucide-react';
-import { collection, query, orderBy, addDoc, onSnapshot, where, Timestamp, getDocs, doc, updateDoc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
-import { formatDistanceToNow } from 'date-fns';
+import { collection, query, orderBy, addDoc, onSnapshot, where, Timestamp, getDocs, doc, updateDoc, setDoc, getDoc, deleteDoc, serverTimestamp } from 'firebase/firestore';
+import { formatDistanceToNow, format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 interface Message {
@@ -36,6 +36,7 @@ interface Conversation {
   lastMessageTime: any;
   unreadCount: number;
   status: 'open' | 'closed';
+  ticketNumber?: string;
 }
 
 interface UserListItem {
@@ -71,8 +72,18 @@ export function SupportChat() {
   const [currentConversation, setCurrentConversation] = React.useState<Conversation | null>(null);
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
-  // ID da conversa do usuário atual (não-master) ou conversa selecionada (master)
-  const activeConversationId = isMaster ? selectedConversation : user?.uid;
+  // ID da conversa selecionada (tanto para master quanto para cliente)
+  const activeConversationId = selectedConversation;
+
+  // Função para gerar número de ticket único
+  const generateTicketNumber = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const random = Math.floor(1000 + Math.random() * 9000); // 4 dígitos
+    return `#${year}${month}${day}-${random}`;
+  };
 
   // Função para tocar som de notificação
   const playNotificationSound = () => {
@@ -112,51 +123,99 @@ export function SupportChat() {
     }
   };
 
-  // Carregar conversas (apenas para MASTER)
+  // Carregar conversas ABERTAS (apenas para MASTER)
   React.useEffect(() => {
     if (!firestore || !user || !isMaster) return;
 
     const conversationsRef = collection(firestore, 'supportConversations');
+    // Buscar todas as conversas e filtrar no cliente
     const q = query(conversationsRef, orderBy('lastMessageTime', 'desc'));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
+      console.log('🔄 Atualizando conversas ativas - total docs:', snapshot.size);
       const convos: Conversation[] = [];
       snapshot.forEach((doc) => {
         const data = doc.data();
-        // Filtrar conversas que o usuário atual ocultou
         const deletedBy = data.deletedBy || [];
-        if (!deletedBy.includes(user.uid)) {
-          convos.push({ id: doc.id, ...data } as Conversation);
+        
+        // IMPORTANTE: Incluir APENAS conversas que:
+        // 1. NÃO têm status === 'closed' (excluir explicitamente fechadas)
+        // 2. Não foram deletadas pelo usuário
+        const isClosed = data.status === 'closed';
+        const isDeleted = deletedBy.includes(user.uid);
+        const shouldInclude = !isClosed && !isDeleted;
+        
+        console.log('📋 Conversa:', doc.id.substring(0, 8), {
+          status: data.status,
+          isClosed,
+          isDeleted,
+          shouldInclude,
+          userName: data.userName
+        });
+        
+        if (shouldInclude) {
+          convos.push({ id: doc.id, ...data, status: data.status || 'open' } as Conversation);
         }
       });
+      
+      console.log('✅ Conversas ativas finais:', convos.length, convos.map(c => ({ id: c.id.substring(0, 8), status: c.status, user: c.userName })));
       setConversations(convos);
     });
 
     return () => unsubscribe();
   }, [firestore, user, isMaster]);
 
-  // Carregar conversas encerradas (histórico) para MASTER
+  // Carregar conversas encerradas (histórico) - MASTER vê todos, CLIENTE vê apenas os seus
   React.useEffect(() => {
-    if (!firestore || !user || !isMaster) return;
+    console.log('🔍 UseEffect histórico - Estado:', { 
+      hasFirestore: !!firestore, 
+      hasUser: !!user, 
+      isMaster,
+      showHistory 
+    });
+    
+    if (!firestore || !user) {
+      console.log('⚠️ Histórico não carregado - faltam requisitos');
+      return;
+    }
+
+    console.log('📚 Carregando histórico de chamados encerrados...');
 
     const conversationsRef = collection(firestore, 'supportConversations');
-    const q = query(
-      conversationsRef,
-      where('status', '==', 'closed'),
-      orderBy('lastMessageTime', 'desc')
+    
+    // MASTER vê todos os chamados encerrados
+    // CLIENTE vê apenas seus próprios chamados encerrados
+    const q = isMaster 
+      ? query(conversationsRef, where('status', '==', 'closed'))
+      : query(conversationsRef, where('status', '==', 'closed'), where('userId', '==', user.uid));
+
+    const unsubscribe = onSnapshot(q, 
+      (snapshot) => {
+        console.log('📚 Snapshot do histórico recebido - docs:', snapshot.size);
+        const convos: Conversation[] = [];
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          console.log('📄 Doc encontrado:', doc.id, data);
+          convos.push({ id: doc.id, ...data } as Conversation);
+        });
+        
+        // Ordenar por closedAt (mais recentes primeiro)
+        convos.sort((a, b) => {
+          const timeA = (a as any).closedAt?.toMillis() || 0;
+          const timeB = (b as any).closedAt?.toMillis() || 0;
+          return timeB - timeA;
+        });
+        
+        console.log('📚 Chamados encerrados encontrados:', convos.length, convos);
+        setClosedConversations(convos);
+      },
+      (error) => {
+        console.error('❌ Erro ao carregar histórico:', error);
+      }
     );
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const convos: Conversation[] = [];
-      snapshot.forEach((doc) => {
-        const data = doc.data();
-        convos.push({ id: doc.id, ...data } as Conversation);
-      });
-      setClosedConversations(convos);
-    });
-
     return () => unsubscribe();
-  }, [firestore, user, isMaster]);
+  }, [firestore, user, isMaster, showHistory]);
 
   // Carregar conversa atual para verificar status
   React.useEffect(() => {
@@ -388,6 +447,16 @@ export function SupportChat() {
   const handleSendMessage = async () => {
     if (!message.trim() || !user || !firestore) return;
 
+    // Verificar se há uma conversa selecionada
+    if (!selectedConversation) {
+      toast({
+        title: 'Nenhuma conversa selecionada',
+        description: 'Por favor, abra um novo chamado primeiro.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     // Verificar se a conversa está encerrada
     if (currentConversation?.status === 'closed' && !isMaster) {
       toast({
@@ -400,28 +469,70 @@ export function SupportChat() {
 
     setIsSending(true);
     try {
-      const conversationId = activeConversationId || user.uid;
+      const conversationId = selectedConversation;
       console.log('Enviando mensagem para conversationId:', conversationId);
 
       // Criar ou atualizar conversa
       const conversationRef = doc(firestore, 'supportConversations', conversationId);
       const conversationSnap = await getDoc(conversationRef);
       
-      const conversationData = {
-        userId: isMaster && selectedConversation ? selectedConversation : user.uid,
-        userName: user.displayName || 'Usuário',
-        userEmail: user.email || '',
+      // Verificar se a conversa estava fechada e está sendo reaberta
+      const wasClosedConversation = conversationSnap.exists() && conversationSnap.data()?.status === 'closed';
+      const isNewConversation = !conversationSnap.exists();
+      
+      // Gerar novo número de ticket se for conversa nova ou reaberta
+      let ticketNumber = conversationSnap.exists() ? conversationSnap.data()?.ticketNumber : undefined;
+      if (isNewConversation || wasClosedConversation) {
+        ticketNumber = generateTicketNumber();
+      }
+
+      // Determinar o userId do cliente (quem está pedindo suporte)
+      const clientUserId = isMaster && selectedConversation ? selectedConversation : user.uid;
+      
+      // Se é nova conversa, definir userName e userEmail do cliente
+      // Se já existe, manter os dados originais do cliente
+      let conversationData: any = {
         lastMessage: message.trim(),
         lastMessageTime: Timestamp.now(),
         unreadCount: isMaster ? 0 : 1,
         status: 'open' as const,
         deletedBy: [], // Limpar deletedBy quando nova mensagem for enviada
+        ticketNumber, // Adicionar número do ticket
       };
+
+      if (isNewConversation) {
+        // Nova conversa: definir userId, userName e userEmail do cliente
+        conversationData.userId = clientUserId;
+        conversationData.userName = isMaster ? (selectedUser?.displayName || 'Usuário') : (user.displayName || 'Usuário');
+        conversationData.userEmail = isMaster ? (selectedUser?.email || '') : (user.email || '');
+      }
+      // Se já existe, não atualizar userId, userName e userEmail - manter os originais
 
       if (conversationSnap.exists()) {
         await updateDoc(conversationRef, conversationData);
       } else {
         await setDoc(conversationRef, conversationData);
+      }
+
+      // Se estava fechado ou é nova, adicionar marcador de "Novo chamado"
+      if (wasClosedConversation || isNewConversation) {
+        const now = new Date();
+        const dateStr = now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const timeStr = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        
+        const markerData = {
+          conversationId,
+          senderId: 'system',
+          senderName: 'Sistema',
+          senderEmail: '',
+          text: `Novo chamado ${ticketNumber} - ${dateStr} às ${timeStr}`,
+          timestamp: Timestamp.now(),
+          read: true,
+          isSystemMessage: true,
+        };
+        
+        await addDoc(collection(firestore, 'supportMessages'), markerData);
+        console.log('Marcador de novo chamado adicionado:', ticketNumber);
       }
 
       // Adicionar mensagem
@@ -463,26 +574,98 @@ export function SupportChat() {
     if (!confirmClose) return;
 
     try {
+      console.log('🔒 Encerrando chamado:', selectedConversation);
+      
       const conversationRef = doc(firestore, 'supportConversations', selectedConversation);
-      await updateDoc(conversationRef, {
+      const updateData = {
         status: 'closed',
         closedAt: Timestamp.now(),
         closedBy: user?.uid,
-      });
+      };
+      
+      console.log('🔒 Dados de encerramento:', updateData);
+      await updateDoc(conversationRef, updateData);
+      
+      console.log('✅ Chamado encerrado com sucesso');
+      
+      // Verificar se foi salvo corretamente
+      const verifySnap = await getDoc(conversationRef);
+      const verifyData = verifySnap.data();
+      console.log('🔍 Verificando status salvo:', verifyData?.status);
+
+      // FORÇAR REDIRECIONAMENTO PARA HISTÓRICO
+      console.log('🔄 Forçando redirecionamento para histórico...');
+      
+      // Limpar TODAS as seleções IMEDIATAMENTE
+      setSelectedConversation(null);
+      setSelectedUser(null);
+      setShowUserList(false);
+      setShowHistory(true);
+      
+      console.log('✅ Estados definidos: showHistory=true, showUserList=false, selectedConversation=null');
 
       toast({
         title: 'Chamado encerrado',
-        description: 'O chamado foi encerrado com sucesso. O histórico foi preservado.',
+        description: 'Redirecionado para o histórico.',
       });
-
-      // Voltar para lista
-      setSelectedConversation(null);
-      setSelectedUser(null);
     } catch (error: any) {
-      console.error('Erro ao encerrar chamado:', error);
+      console.error('❌ Erro ao encerrar chamado:', error);
       toast({
         title: 'Erro',
         description: error.message || 'Não foi possível encerrar o chamado.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleOpenNewTicket = async () => {
+    if (!user || !firestore) return;
+    
+    try {
+      // Gerar novo ticket
+      const ticketNumber = generateTicketNumber();
+      
+      // Criar nova conversa
+      const newConversationRef = doc(collection(firestore, 'supportConversations'));
+      await setDoc(newConversationRef, {
+        userId: user.uid,
+        userName: user.displayName || 'Usuário',
+        userEmail: user.email || '',
+        status: 'open',
+        ticketNumber,
+        lastMessage: `Novo chamado ${ticketNumber}`,
+        lastMessageTime: serverTimestamp(),
+        unreadCount: 0,
+        deletedBy: []
+      });
+      
+      // Criar mensagem de sistema
+      const now = new Date();
+      const formattedDate = format(now, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
+      
+      await addDoc(collection(firestore, 'supportMessages'), {
+        conversationId: newConversationRef.id,
+        senderId: 'system',
+        senderName: 'Sistema',
+        text: `Novo chamado ${ticketNumber} - ${formattedDate}`,
+        timestamp: serverTimestamp(),
+        read: false,
+        isSystemMessage: true
+      });
+      
+      // Selecionar a nova conversa
+      setSelectedConversation(newConversationRef.id);
+      setShowHistory(false);
+      
+      toast({
+        title: 'Novo chamado criado',
+        description: `Ticket ${ticketNumber} aberto com sucesso.`,
+      });
+    } catch (error) {
+      console.error('Erro ao criar novo chamado:', error);
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível criar o novo chamado.',
         variant: 'destructive',
       });
     }
@@ -537,34 +720,48 @@ export function SupportChat() {
     setShowUserList(false);
   };
 
-  const getUserStatus = (userItem: UserListItem): 'available' | 'waiting' | 'critical' => {
-    if (!userItem.isWaitingSupport) return 'available';
-    
-    if (userItem.lastMessageTime) {
-      const now = new Date();
-      const messageTime = userItem.lastMessageTime.toDate();
-      const hoursDiff = (now.getTime() - messageTime.getTime()) / (1000 * 60 * 60);
-      
-      if (hoursDiff > 1) return 'critical';
+  const getUserStatus = (userItem: UserListItem): 'available' | 'waiting' | 'critical' | 'offline' => {
+    // Se tem mensagens esperando suporte
+    if (userItem.isWaitingSupport) {
+      if (userItem.lastMessageTime) {
+        const now = new Date();
+        const messageTime = userItem.lastMessageTime.toDate();
+        const hoursDiff = (now.getTime() - messageTime.getTime()) / (1000 * 60 * 60);
+        
+        if (hoursDiff > 1) return 'critical';
+        return 'waiting';
+      }
       return 'waiting';
     }
     
-    return 'available';
+    // Se tem lastMessageTime recente (menos de 24h), está disponível
+    if (userItem.lastMessageTime) {
+      const now = new Date();
+      const messageTime = userItem.lastMessageTime.toDate();
+      const daysDiff = (now.getTime() - messageTime.getTime()) / (1000 * 60 * 60 * 24);
+      
+      if (daysDiff < 1) return 'available';
+    }
+    
+    // Caso contrário, está offline (sem atividade recente)
+    return 'offline';
   };
 
-  const getStatusColor = (status: 'available' | 'waiting' | 'critical') => {
+  const getStatusColor = (status: 'available' | 'waiting' | 'critical' | 'offline') => {
     switch (status) {
       case 'available': return 'text-green-500';
       case 'waiting': return 'text-yellow-500';
       case 'critical': return 'text-red-500';
+      case 'offline': return 'text-gray-400';
     }
   };
 
-  const getStatusText = (status: 'available' | 'waiting' | 'critical') => {
+  const getStatusText = (status: 'available' | 'waiting' | 'critical' | 'offline') => {
     switch (status) {
       case 'available': return 'Disponível';
       case 'waiting': return 'Aguardando suporte';
       case 'critical': return 'URGENTE - Mais de 1h aguardando';
+      case 'offline': return 'Usuário não disponível';
     }
   };
 
@@ -647,12 +844,19 @@ export function SupportChat() {
                   <Archive className="h-4 w-4 text-muted-foreground" />
                   <Avatar className="h-8 w-8">
                     <AvatarFallback>
-                      {convo.userName.substring(0, 2).toUpperCase()}
+                      {isMaster ? convo.userName.substring(0, 2).toUpperCase() : 'SU'}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
-                    <CardTitle className="text-sm">{convo.userName}</CardTitle>
-                    <CardDescription className="text-xs">{convo.userEmail}</CardDescription>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-sm">{isMaster ? convo.userName : 'Suporte'}</CardTitle>
+                      {convo.ticketNumber && (
+                        <Badge variant="outline" className="text-xs">
+                          {convo.ticketNumber}
+                        </Badge>
+                      )}
+                    </div>
+                    <CardDescription className="text-xs">{isMaster ? convo.userEmail : 'Equipe de suporte'}</CardDescription>
                   </div>
                 </div>
                 <Badge variant="secondary" className="text-xs">
@@ -698,12 +902,12 @@ export function SupportChat() {
                 >
                   <Avatar className="h-8 w-8">
                     <AvatarFallback>
-                      {convo.userName.substring(0, 2).toUpperCase()}
+                      {isMaster ? convo.userName.substring(0, 2).toUpperCase() : 'SU'}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
-                    <CardTitle className="text-sm">{convo.userName}</CardTitle>
-                    <CardDescription className="text-xs">{convo.userEmail}</CardDescription>
+                    <CardTitle className="text-sm">{isMaster ? convo.userName : 'Suporte'}</CardTitle>
+                    <CardDescription className="text-xs">{isMaster ? convo.userEmail : 'Equipe de suporte'}</CardDescription>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -765,6 +969,21 @@ export function SupportChat() {
       ) : (
         <div className="space-y-4">
           {messages.map((msg) => {
+            // Mensagem do sistema (marcador de novo chamado)
+            if ((msg as any).isSystemMessage || msg.senderId === 'system') {
+              return (
+                <div key={msg.id} className="flex items-center gap-3 my-4">
+                  <div className="flex-1 h-px bg-border" />
+                  <div className="px-3 py-1 bg-muted rounded-full">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {msg.text}
+                    </p>
+                  </div>
+                  <div className="flex-1 h-px bg-border" />
+                </div>
+              );
+            }
+
             const isCurrentUser = msg.senderId === user?.uid;
             
             // Para MASTER: SEMPRE mostrar nome do USUÁRIO DO CHAT (cliente), não do remetente
@@ -855,8 +1074,8 @@ export function SupportChat() {
       <SheetTrigger asChild>
         <span className="hidden" />
       </SheetTrigger>
-      <SheetContent side="right" className="w-full sm:w-[500px] sm:max-w-[500px]">
-        <SheetHeader>
+      <SheetContent side="right" className="w-full sm:w-[500px] sm:max-w-[500px] flex flex-col">
+        <SheetHeader className="flex-shrink-0">
           <SheetTitle className="flex items-center gap-2">
             <MessageCircle className="h-5 w-5" />
             {isMaster ? 'Central de Suporte' : 'Suporte'}
@@ -868,7 +1087,7 @@ export function SupportChat() {
           </SheetDescription>
         </SheetHeader>
 
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 flex-1 flex flex-col overflow-hidden">
           {isMaster && !selectedConversation && !showUserList && !showHistory && (
             <>
               <div className="flex gap-2 mb-4">
@@ -901,7 +1120,16 @@ export function SupportChat() {
             </>
           )}
 
-          {isMaster && showHistory && !selectedConversation && (
+          {(() => {
+            const shouldShowHistory = showHistory && !selectedConversation;
+            console.log('🎯 Verificando exibição do histórico:', {
+              isMaster,
+              showHistory,
+              selectedConversation,
+              shouldShowHistory
+            });
+            return shouldShowHistory;
+          })() && (
             <>
               <Button
                 variant="outline"
@@ -913,7 +1141,7 @@ export function SupportChat() {
               </Button>
               <h3 className="text-sm font-medium mb-3 flex items-center gap-2">
                 <Archive className="h-4 w-4" />
-                Histórico de Chamados Encerrados
+                {isMaster ? 'Histórico de Chamados Encerrados' : 'Meus Chamados Encerrados'} ({closedConversations.length})
               </h3>
               {renderHistoryList()}
             </>
@@ -937,39 +1165,78 @@ export function SupportChat() {
             </>
           )}
 
-          {/* Área de conversa - mostra quando não-MASTER OU quando MASTER tem conversa */}
-          {((!isMaster) || (isMaster && selectedConversation)) && (
-            <>
-              {isMaster && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedConversation(null);
-                    setSelectedUser(null);
-                    setShowUserList(false);
-                  }}
-                  className="mb-2 w-full"
-                >
-                  ← Voltar para lista
-                </Button>
-              )}
+          {/* Botões para CLIENTES (não-MASTER) quando não tem conversa selecionada */}
+          {!isMaster && !selectedConversation && !showHistory && (
+            <div className="flex gap-2 mb-2 flex-shrink-0">
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleOpenNewTicket}
+                className="flex-1"
+              >
+                <MessageCircle className="h-4 w-4 mr-2" />
+                Abrir Novo Chamado
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowHistory(true)}
+                className="flex-1"
+              >
+                <Archive className="h-4 w-4 mr-2" />
+                Histórico ({closedConversations.length})
+              </Button>
+            </div>
+          )}
 
-              {currentConversation?.status === 'closed' && (
-                <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                  <div className="flex items-center gap-2 text-orange-700">
-                    <Clock className="h-4 w-4" />
-                    <span className="text-sm font-medium">Chamado Encerrado</span>
+          {/* Área de conversa - mostra quando não-MASTER tem conversa OU quando MASTER tem conversa */}
+          {(((!isMaster && selectedConversation) && !showHistory) || (isMaster && selectedConversation)) && (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <div className="flex-shrink-0">
+                {isMaster && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedConversation(null);
+                      setSelectedUser(null);
+                      setShowUserList(false);
+                    }}
+                    className="mb-2 w-full"
+                  >
+                    ← Voltar para lista
+                  </Button>
+                )}
+
+                {/* Exibir número do ticket */}
+                {currentConversation?.ticketNumber && (
+                  <div className="mb-2 p-2 bg-primary/10 border border-primary/20 rounded-lg">
+                    <p className="text-xs font-medium text-primary text-center">
+                      Chamado {currentConversation.ticketNumber}
+                    </p>
                   </div>
-                  <p className="text-xs text-orange-600 mt-1">
-                    {isMaster ? 'Este chamado foi encerrado. Você pode visualizar o histórico.' : 'Este chamado foi encerrado. Abra um novo chat para continuar.'}
-                  </p>
-                </div>
-              )}
+                )}
 
-              {renderMessages()}
+                {currentConversation?.status === 'closed' && (
+                  <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                    <div className="flex items-center gap-2 text-orange-700">
+                      <Clock className="h-4 w-4" />
+                      <span className="text-sm font-medium">Chamado Encerrado</span>
+                    </div>
+                    <p className="text-xs text-orange-600 mt-1">
+                      {isMaster ? 'Este chamado foi encerrado. Você pode visualizar o histórico.' : 'Este chamado foi encerrado. Abra um novo chat para continuar.'}
+                    </p>
+                  </div>
+                )}
+              </div>
 
-              <div className="space-y-2">
+              {/* Área de mensagens com scroll */}
+              <div className="flex-1 overflow-y-auto mb-4">
+                {renderMessages()}
+              </div>
+
+              {/* Campo de mensagem FIXO NA BASE */}
+              <div className="flex-shrink-0 space-y-2 border-t pt-4">
                 <div className="flex gap-2">
                   <Input
                     placeholder={currentConversation?.status === 'closed' && !isMaster ? 'Chamado encerrado - Abra um novo chat' : 'Digite sua mensagem...'}
@@ -996,24 +1263,20 @@ export function SupportChat() {
                   </Button>
                 </div>
 
-                {/* ⚠️ BOTÕES DE CONTROLE - DEVEM APARECER AQUI ABAIXO ⚠️ */}
-                {(() => {
-                  console.log('🔍 Renderizando botões de controle:', { isMaster, selectedConversation, currentConversation });
-                  return null;
-                })()}
-                <div className="flex gap-2" style={{ backgroundColor: 'rgba(255,0,0,0.1)', padding: '8px', border: '2px solid red' }}>
+                {/* Botões de controle */}
+                <div className="flex gap-2 justify-center">
                   {/* Botão Som - para todos */}
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={() => setSoundEnabled(!soundEnabled)}
                     title={soundEnabled ? 'Desativar som de notificação' : 'Ativar som de notificação'}
-                    className="flex-1"
+                    className="border border-border hover:bg-accent"
                   >
                     {soundEnabled ? (
                       <Bell className="h-4 w-4 mr-2" />
                     ) : (
-                      <BellOff className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <BellOff className="h-4 w-4 mr-2" />
                     )}
                     {soundEnabled ? 'Som ativado' : 'Som desativado'}
                   </Button>
@@ -1021,11 +1284,11 @@ export function SupportChat() {
                   {/* Botão Encerrar - só MASTER em conversas abertas */}
                   {isMaster && (!currentConversation || currentConversation?.status !== 'closed') && (
                     <Button
-                      variant="outline"
+                      variant="ghost"
                       size="sm"
                       onClick={handleCloseTicket}
                       title="Encerrar chamado"
-                      className="flex-1 border-orange-500 text-orange-600 hover:bg-orange-50"
+                      className="border border-orange-300 text-orange-600 hover:border-red-500 hover:text-red-600 hover:bg-red-50 transition-colors"
                     >
                       <XCircle className="h-4 w-4 mr-2" />
                       Encerrar
@@ -1035,17 +1298,18 @@ export function SupportChat() {
                   {/* Botão Deletar - só MASTER */}
                   {isMaster && (
                     <Button
-                      variant="destructive"
+                      variant="ghost"
                       size="sm"
                       onClick={() => selectedConversation && handleDeleteConversation(selectedConversation)}
                       title="Ocultar conversa"
+                      className="border border-red-300 text-destructive hover:border-red-500 hover:bg-destructive/10"
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   )}
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
       </SheetContent>
