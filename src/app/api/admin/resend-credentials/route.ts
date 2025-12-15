@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     console.log('Atualizando senha do usuário...');
     
     const updatePasswordResponse = await fetch(
-      `https://identitytoolkit.googleapis.com/v1/accounts:update?key=${firebaseConfig.apiKey}`,
+      `https://identitytoolkit.googleapis.com/v1/accounts:setAccountInfo?key=${firebaseConfig.apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -214,7 +214,9 @@ export async function POST(request: NextRequest) {
     const emailBody = template.bodyText
       .replace(/{nome}/g, `<strong style="color: ${template.primaryColor};">${name}</strong>`)
       .replace(/{email}/g, `<strong style="color: ${template.textColor};">${email}</strong>`)
-      .replace(/{senha}/g, `<span style="font-family: 'Courier New', Courier, monospace; font-size: 20px; font-weight: bold; color: ${template.primaryColor}; letter-spacing: 2px; background-color: #f0f0f0; padding: 4px 8px; border-radius: 4px; display: inline-block; -webkit-text-security: none !important; text-security: none !important;">${newPassword}</span>`)
+      .replace(/{senha}/g, newPassword.split('').map(char => 
+        `<span style="display: inline-block; font-family: 'Courier New', Courier, monospace; font-size: 22px; font-weight: bold; color: ${template.primaryColor}; margin: 0 1px; -webkit-text-security: none; text-security: none; user-select: text;">${char}</span>`
+      ).join(''))
       .replace(/{link}/g, appUrl)
       .replace(/\n/g, '<br>');
 
