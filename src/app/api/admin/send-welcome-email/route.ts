@@ -152,11 +152,11 @@ export async function POST(request: NextRequest) {
       console.log('Usando template padrão (erro ao carregar personalizado):', err);
     }
 
-    // Substituir variáveis no texto do template
+    // Substituir variáveis no texto do template (senha SEMPRE visível)
     const emailBody = template.bodyText
       .replace(/{nome}/g, `<strong style="color: ${template.primaryColor};">${name}</strong>`)
       .replace(/{email}/g, `<strong style="color: ${template.textColor};">${email}</strong>`)
-      .replace(/{senha}/g, `<strong style="font-family: 'Courier New', Courier, monospace; font-size: 18px; color: ${template.primaryColor}; letter-spacing: 1px;">${password}</strong>`)
+      .replace(/{senha}/g, `<span style="font-family: 'Courier New', Courier, monospace; font-size: 20px; font-weight: bold; color: ${template.primaryColor}; letter-spacing: 2px; background-color: #f0f0f0; padding: 4px 8px; border-radius: 4px; display: inline-block; -webkit-text-security: none !important; text-security: none !important;">${password}</span>`)
       .replace(/{link}/g, appUrl)
       .replace(/\n/g, '<br>');
 
