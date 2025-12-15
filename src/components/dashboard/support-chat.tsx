@@ -67,40 +67,47 @@ export function SupportChat() {
   const [soundEnabled, setSoundEnabled] = React.useState(true);
   const [lastMessageCount, setLastMessageCount] = React.useState(0);
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
   // ID da conversa do usuário atual (não-master) ou conversa selecionada (master)
   const activeConversationId = isMaster ? selectedConversation : user?.uid;
 
-  // Inicializar áudio de notificação
-  React.useEffect(() => {
-    // Criar elemento de áudio com som de notificação
-    // Usando AudioContext para gerar um som de sino programaticamente
-    const playNotificationSound = () => {
-      try {
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.frequency.value = 800;
-        oscillator.type = 'sine';
-        
-        gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5);
-      } catch (error) {
-        console.log('Erro ao criar som de notificação:', error);
-      }
-    };
+  // Função para tocar som de notificação
+  const playNotificationSound = () => {
+    if (!soundEnabled) return;
     
-    // Armazenar a função no ref
-    (audioRef as any).current = { play: playNotificationSound };
-  }, []);
+    try {
+      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      
+      // Tom 1: Nota alta
+      const oscillator1 = audioContext.createOscillator();
+      const gainNode1 = audioContext.createGain();
+      oscillator1.connect(gainNode1);
+      gainNode1.connect(audioContext.destination);
+      oscillator1.frequency.value = 800;
+      oscillator1.type = 'sine';
+      gainNode1.gain.setValueAtTime(0.3, audioContext.currentTime);
+      gainNode1.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+      oscillator1.start(audioContext.currentTime);
+      oscillator1.stop(audioContext.currentTime + 0.2);
+      
+      // Tom 2: Nota mais alta (efeito de sino)
+      const oscillator2 = audioContext.createOscillator();
+      const gainNode2 = audioContext.createGain();
+      oscillator2.connect(gainNode2);
+      gainNode2.connect(audioContext.destination);
+      oscillator2.frequency.value = 1000;
+      oscillator2.type = 'sine';
+      gainNode2.gain.setValueAtTime(0, audioContext.currentTime + 0.1);
+      gainNode2.gain.setValueAtTime(0.3, audioContext.currentTime + 0.1);
+      gainNode2.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+      oscillator2.start(audioContext.currentTime + 0.1);
+      oscillator2.stop(audioContext.currentTime + 0.4);
+      
+      console.log('✅ Som de notificação tocado');
+    } catch (error) {
+      console.error('Erro ao tocar som de notificação:', error);
+    }
+  };
 
   // Carregar conversas (apenas para MASTER)
   React.useEffect(() => {
@@ -274,12 +281,9 @@ export function SupportChat() {
     if (messages.length > lastMessageCount && lastMessageCount > 0) {
       const newMessage = messages[messages.length - 1];
       // Tocar som apenas se a mensagem não for do próprio usuário e o som estiver ativado
-      if (newMessage.senderId !== user?.uid && soundEnabled && audioRef.current) {
-        try {
-          (audioRef.current as any).play();
-        } catch (err) {
-          console.log('Erro ao tocar som:', err);
-        }
+      if (newMessage.senderId !== user?.uid && soundEnabled) {
+        console.log('🔔 Nova mensagem recebida de:', newMessage.senderName);
+        playNotificationSound();
       }
     }
     setLastMessageCount(messages.length);
