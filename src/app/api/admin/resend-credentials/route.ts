@@ -90,6 +90,9 @@ export async function POST(request: NextRequest) {
       }
     );
 
+    const getUserData = await getUserResponse.json();
+    console.log('Resposta da busca de usuário:', getUserData);
+
     let firebaseUserId;
 
     // Verificar resposta da busca

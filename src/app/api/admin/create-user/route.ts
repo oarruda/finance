@@ -75,7 +75,65 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Senha deve conter letras e números' }, { status: 400 });
     }
 
+    // Verificar se o email já existe no Auth
+    console.log('Verificando se email já existe:', email);
+    const checkEmailResponse = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${firebaseConfig.apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: [email] }),
+      }
+    );
+
+    if (checkEmailResponse.ok) {
+      const checkData = await checkEmailResponse.json();
+      if (checkData.users && checkData.users.length > 0) {
+        console.log('Email já existe no Auth. Verificando se existe no Firestore...');
+        
+        // Verificar se existe no Firestore
+        const existingUserId = checkData.users[0].localId;
+        const checkFirestoreResponse = await fetch(
+          `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${existingUserId}`,
+          {
+            headers: { 'Authorization': `Bearer ${token}` },
+          }
+        );
+
+        if (checkFirestoreResponse.ok) {
+          // Usuário existe no Auth E no Firestore - email realmente em uso
+          return NextResponse.json({ 
+            error: 'Este email já está em uso por outro usuário ativo' 
+          }, { status: 400 });
+        } else {
+          // Usuário existe no Auth mas NÃO no Firestore - é um usuário "órfão" que deve ser deletado
+          console.log('Usuário órfão detectado no Auth (não existe no Firestore). Deletando...');
+          
+          // Usar Firebase Admin SDK para deletar
+          try {
+            const deleteResponse = await fetch(`${request.nextUrl.origin}/api/admin/delete-orphan-auth-user`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`,
+              },
+              body: JSON.stringify({ email }),
+            });
+
+            if (!deleteResponse.ok) {
+              console.error('Falha ao deletar usuário órfão');
+            } else {
+              console.log('Usuário órfão deletado com sucesso');
+            }
+          } catch (err) {
+            console.error('Erro ao deletar usuário órfão:', err);
+          }
+        }
+      }
+    }
+
     // Criar usuário no Firebase Auth via REST API
+    console.log('Criando usuário no Firebase Auth...');
     const createUserResponse = await fetch(FIREBASE_AUTH_API, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -92,7 +150,7 @@ export async function POST(request: NextRequest) {
       let errorMessage = 'Erro ao criar usuário';
       
       if (errorData.error?.message === 'EMAIL_EXISTS') {
-        errorMessage = 'Este email já está em uso';
+        errorMessage = 'Este email ainda está em uso. Aguarde alguns segundos e tente novamente.';
       } else if (errorData.error?.message === 'INVALID_EMAIL') {
         errorMessage = 'Email inválido';
       } else if (errorData.error?.message === 'WEAK_PASSWORD') {
