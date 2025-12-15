@@ -8,8 +8,8 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 
 export const metadata: Metadata = {
-  title: 'FIN - Controle Financeiro',
-  description: 'Um controle financeiro completo para sua família.',
+  title: 'FIN',
+  description: 'Gestão financeira moderna para sua família.',
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },

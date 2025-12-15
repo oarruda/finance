@@ -1,6 +1,6 @@
-# 💰 Sistema de Gestão Financeira
+# 💰 FIN
 
-Sistema completo de gestão financeira construído com Next.js 15, Firebase, e inteligência artificial.
+FIN é um sistema completo de gestão financeira construído com Next.js 15, Firebase e inteligência artificial.
 
 ## 🚀 Funcionalidades
 

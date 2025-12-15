@@ -90,12 +90,12 @@ export default function WelcomeEmail({
     <body>
       <div className="container">
         <div className="header">
-          <h1>🎉 Bem-vindo ao Sistema Financeiro</h1>
+          <h1>🎉 Bem-vindo ao FIN</h1>
         </div>
         <div className="content">
           <p>Olá <strong>{name}</strong>,</p>
           <p>
-            Uma conta foi criada para você no sistema de gestão financeira. 
+            Uma conta foi criada para você no FIN. 
             Abaixo estão suas credenciais de acesso:
           </p>
           

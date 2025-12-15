@@ -114,10 +114,10 @@ export async function POST(request: NextRequest) {
       backgroundColor: '#f4f4f4',
       textColor: '#333333',
       fontFamily: 'Arial, sans-serif',
-      headerTitle: '🎉 Bem-vindo ao Sistema Financeiro',
-      bodyText: 'Olá {nome},\n\nUma conta foi criada para você no sistema de gestão financeira. Abaixo estão suas credenciais de acesso:\n\nEmail: {email}\nSenha Temporária: {senha}\n\n⚠️ Importante: Esta é uma senha temporária. Por motivos de segurança, recomendamos que você altere sua senha após o primeiro acesso.',
+      headerTitle: '🎉 Bem-vindo ao FIN',
+      bodyText: 'Olá {nome},\n\nUma conta foi criada para você no FIN. Abaixo estão suas credenciais de acesso:\n\nEmail: {email}\nSenha Temporária: {senha}\n\n⚠️ Importante: Esta é uma senha temporária. Por motivos de segurança, recomendamos que você altere sua senha após o primeiro acesso.',
       footerText: 'Este é um email automático. Por favor, não responda a esta mensagem.',
-      companyName: 'Sistema Financeiro',
+      companyName: 'FIN',
       buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
       buttonTextColor: '#ffffff',
     };
