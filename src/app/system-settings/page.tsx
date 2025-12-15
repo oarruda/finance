@@ -13,6 +13,7 @@ import { saveUserSettings, getUserSettings } from '@/lib/user-settings';
 import { useLanguage } from '@/lib/i18n';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useRouter } from 'next/navigation';
+import { FloatingSaveButton } from '@/components/ui/floating-save-button';
 import { AIApiKeyLoader } from '@/components/ai-api-key-loader';
 import { ExchangeRateApiKeyLoader } from '@/components/exchange-rate-api-key-loader';
 import { BankApiKeyLoader } from '@/components/bank-api-key-loader';
@@ -746,15 +747,13 @@ export default function SystemSettingsPage() {
       </div>
 
       {isEditing && (
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={handleCancel} disabled={isLoading}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSubmit} disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Salvar Configurações
-          </Button>
-        </div>
+        <FloatingSaveButton
+          onSave={handleSubmit}
+          onCancel={handleCancel}
+          isLoading={isLoading}
+          saveLabel="Salvar Configurações"
+          cancelLabel="Cancelar"
+        />
       )}
     </div>
   );

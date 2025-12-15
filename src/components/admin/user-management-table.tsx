@@ -27,7 +27,7 @@ import {
 } from '../ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '../ui/badge';
-import { Loader2, Trash2, Eye, Mail, Ban, CheckCircle, Pencil, Shuffle } from 'lucide-react';
+import { Loader2, Trash2, Eye, Mail, Ban, CheckCircle, Pencil, Shuffle, Save } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, query, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Skeleton } from '../ui/skeleton';
@@ -926,14 +926,18 @@ export function UserManagementTable() {
             <Button
               onClick={handleSaveEdit}
               disabled={isSavingEdit}
+              className="gap-2"
             >
               {isSavingEdit ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Salvando...
                 </>
               ) : (
-                'Salvar Alterações'
+                <>
+                  <Save className="h-4 w-4" />
+                  SALVAR
+                </>
               )}
             </Button>
           </DialogFooter>

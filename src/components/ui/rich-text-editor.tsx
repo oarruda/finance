@@ -12,6 +12,7 @@ interface RichTextEditorProps {
   placeholder?: string;
   rows?: number;
   className?: string;
+  additionalVariables?: Array<{ label: string; value: string }>;
 }
 
 export function RichTextEditor({
@@ -21,6 +22,7 @@ export function RichTextEditor({
   placeholder = '',
   rows = 8,
   className,
+  additionalVariables = [],
 }: RichTextEditorProps) {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
@@ -104,19 +106,31 @@ export function RichTextEditor({
     }, 0);
   };
 
-  const variables = [
+  const defaultVariables = [
     { label: 'Nome', value: '{nome}' },
     { label: 'Email', value: '{email}' },
     { label: 'Senha', value: '{senha}' },
     { label: 'Link', value: '{link}' },
   ];
 
+  const variables = [...defaultVariables, ...additionalVariables];
+
   // Preview HTML com substituição de variáveis de exemplo
-  const previewHTML = value
+  let previewHTML = value
     .replace(/{nome}/g, '<strong>João Silva</strong>')
     .replace(/{email}/g, '<strong>joao.silva@exemplo.com</strong>')
     .replace(/{senha}/g, '<strong style="color: #667eea; background: #f8f9fa; padding: 4px 8px; border-radius: 4px; font-family: monospace;">Temp@2024Pass</strong>')
     .replace(/{link}/g, '#')
+    .replace(/{periodo}/g, '<strong>01/12/2024 a 31/12/2024</strong>')
+    .replace(/{totalReceitas}/g, '<strong style="color: #2e7d32;">R$ 5.000,00</strong>')
+    .replace(/{totalDespesas}/g, '<strong style="color: #c62828;">R$ 3.100,00</strong>')
+    .replace(/{saldo}/g, '<strong style="color: #1565c0;">R$ 1.900,00</strong>')
+    .replace(/{totalTransacoes}/g, '<strong>45</strong>')
+    .replace(/{topCategorias}/g, '<br><strong>1. Alimentação - R$ 1.200,00</strong><br><strong>2. Transporte - R$ 800,00</strong><br><strong>3. Lazer - R$ 450,00</strong>')
+    .replace(/{totalConversoes}/g, '<strong>12</strong>')
+    .replace(/{valorTotalConvertido}/g, '<strong>€ 2.450,00</strong>')
+    .replace(/{taxaMediaConversao}/g, '<strong>5.25</strong>')
+    .replace(/{topMoedasConversao}/g, '<br><strong>1. BRL → EUR: € 1.500,00</strong><br><strong>2. BRL → USD: $ 950,00</strong>')
     .replace(/\n/g, '<br>');
 
   return (

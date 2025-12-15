@@ -15,7 +15,9 @@ import { Loader2 } from 'lucide-react';
 import { useUserPresence } from '@/hooks/use-user-presence';
 import { ChangePasswordDialog } from '@/components/auth/change-password-dialog';
 import { SessionTimeout } from '@/components/SessionTimeout';
+import { SupportChat } from '@/components/dashboard/support-chat';
 import { doc, getDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
 
 export default function DashboardLayout({
   children,
@@ -23,7 +25,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
     const { user, isUserLoading } = useUser();
-    const { firestore } = useFirebase();
+    const { firestore, auth } = useFirebase();
     const [isMounted, setIsMounted] = React.useState(false);
     const [showChangePassword, setShowChangePassword] = React.useState(false);
     const [isCheckingPassword, setIsCheckingPassword] = React.useState(true);
@@ -127,6 +129,9 @@ export default function DashboardLayout({
 
       {/* Controle de timeout de sessão */}
       <SessionTimeout />
+
+      {/* Botão de suporte flutuante */}
+      <SupportChat />
     </>
   );
 }

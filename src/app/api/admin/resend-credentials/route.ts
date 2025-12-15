@@ -4,14 +4,22 @@ import { Resend } from 'resend';
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🚀 Iniciando resend-credentials');
+    console.log('📦 Firebase Config:', {
+      apiKey: firebaseConfig.apiKey ? 'Definido' : 'Indefinido',
+      projectId: firebaseConfig.projectId
+    });
+
     // Obter token do header para verificar autenticação
     const authHeader = request.headers.get('authorization');
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.error('❌ Header de autenticação inválido');
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
 
     const token = authHeader.split('Bearer ')[1];
+    console.log('✅ Token obtido');
     
     // Verificar autenticação via REST API
     const verifyResponse = await fetch(
@@ -48,16 +56,30 @@ export async function POST(request: NextRequest) {
     // Buscar dados do usuário no Firestore usando REST API
     const userFirestoreUrl = `https://firestore.googleapis.com/v1/projects/${firebaseConfig.projectId}/databases/(default)/documents/users/${userId}?key=${firebaseConfig.apiKey}`;
     
+    console.log('🔍 Buscando usuário em:', userFirestoreUrl);
     const userResponse = await fetch(userFirestoreUrl);
 
+    console.log('📡 Status da resposta:', userResponse.status);
+
     if (!userResponse.ok) {
-      console.error('❌ Usuário não encontrado no Firestore');
+      const errorText = await userResponse.text();
+      console.error('❌ Erro ao buscar usuário no Firestore:', errorText);
       return NextResponse.json({ 
-        error: 'Usuário não encontrado' 
+        error: 'Usuário não encontrado no Firestore',
+        details: errorText
       }, { status: 404 });
     }
 
     const userDoc = await userResponse.json();
+    console.log('📄 Documento do usuário:', JSON.stringify(userDoc, null, 2));
+    
+    if (!userDoc.fields) {
+      console.error('❌ Documento do usuário não tem fields');
+      return NextResponse.json({ 
+        error: 'Documento do usuário inválido' 
+      }, { status: 404 });
+    }
+
     const userData = userDoc.fields;
     
     const firstName = userData?.firstName?.stringValue || '';

@@ -47,9 +47,8 @@ const DialogContent = React.forwardRef<
     >
       {children}
       {!hideCloseButton && (
-        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent text-transparent">
-          <X className="h-4 w-4 text-transparent" />
-          <span className="sr-only">Close</span>
+        <DialogPrimitive.Close className="absolute right-4 top-4 rounded-md px-3 py-1.5 text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none transition-colors">
+          Fechar
         </DialogPrimitive.Close>
       )}
     </DialogPrimitive.Content>

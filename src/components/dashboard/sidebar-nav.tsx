@@ -371,7 +371,7 @@ export function SidebarNav() {
           
           <SidebarSeparator className="my-2" />
           
-          {/* Settings - Only for MASTER */}
+          {/* System Settings - Only for MASTER */}
           {isMaster && (
             <SidebarMenuItem>
               <SidebarMenuButton

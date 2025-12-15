@@ -13,6 +13,8 @@ import { saveUserSettings, getUserSettings } from '@/lib/user-settings';
 import Image from 'next/image';
 import { useLanguage } from '@/lib/i18n';
 import { AvatarPicker, UserAvatar } from '@/components/ui/avatar-picker';
+import { FloatingSaveButton } from '@/components/ui/floating-save-button';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 
 const CurrencyFlag = ({ code }: { code: string }) => {
   const flags: Record<string, string> = {
@@ -56,6 +58,8 @@ export default function ProfilePage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [selectedAvatarId, setSelectedAvatarId] = React.useState<string>('user-1');
+  const [emailFrequency, setEmailFrequency] = React.useState<'never' | 'biweekly' | 'monthly'>('never');
+  const [isSendingTest, setIsSendingTest] = React.useState(false);
   const [formData, setFormData] = React.useState({
     firstName: '',
     lastName: '',
@@ -117,6 +121,25 @@ export default function ProfilePage() {
       }
     };
     loadUserSettings();
+  }, [user, firestore]);
+
+  React.useEffect(() => {
+    const loadEmailSettings = async () => {
+      if (!user?.uid || !firestore) return;
+
+      try {
+        const userRef = doc(firestore, 'users', user.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          setEmailFrequency(data.emailFrequency || 'never');
+        }
+      } catch (error) {
+        console.error('Erro ao carregar configurações de email:', error);
+      }
+    };
+
+    loadEmailSettings();
   }, [user, firestore]);
 
   const capitalizeFirstLetter = (text: string) => {
@@ -277,6 +300,69 @@ export default function ProfilePage() {
     const numbers = value.replace(/\D/g, '');
     if (numbers.length <= 5) return numbers;
     return numbers.slice(0, 5) + '-' + numbers.slice(5, 8);
+  };
+
+  const handleSaveEmailSettings = async () => {
+    if (!user?.uid || !firestore) return;
+
+    setIsLoading(true);
+    try {
+      const userRef = doc(firestore, 'users', user.uid);
+      await updateDoc(userRef, {
+        emailFrequency,
+        updatedAt: new Date().toISOString(),
+      });
+
+      toast({
+        title: 'Sucesso',
+        description: 'Configurações de email salvas com sucesso.',
+      });
+    } catch (error) {
+      console.error('Erro ao salvar configurações de email:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Não foi possível salvar as configurações de email.',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSendTestEmail = async () => {
+    if (!user) return;
+
+    setIsSendingTest(true);
+    try {
+      const idToken = await user.getIdToken();
+      const response = await fetch('/api/reports/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Erro ao enviar email');
+      }
+
+      const data = await response.json();
+      toast({
+        title: 'Email enviado!',
+        description: `Relatório enviado com sucesso. ${data.summary.transactionCount} transações processadas.`,
+      });
+    } catch (error: any) {
+      console.error('Erro ao enviar email de teste:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: error.message || 'Não foi possível enviar o email de teste.',
+      });
+    } finally {
+      setIsSendingTest(false);
+    }
   };
 
   return (
@@ -598,16 +684,59 @@ export default function ProfilePage() {
         </Card>
       </div>
 
+      {/* Email Reports Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Relatórios por Email</CardTitle>
+          <CardDescription>
+            Receba relatórios periódicos com resumo de suas transações e gráficos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="emailFrequency">Frequência de Envio</Label>
+            <Select value={emailFrequency} onValueChange={(value: any) => setEmailFrequency(value)}>
+              <SelectTrigger id="emailFrequency">
+                <SelectValue placeholder="Selecione a frequência" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="never">Nunca</SelectItem>
+                <SelectItem value="biweekly">A cada 15 dias</SelectItem>
+                <SelectItem value="monthly">Mensal</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              {emailFrequency === 'never' && 'Você não receberá relatórios por email.'}
+              {emailFrequency === 'biweekly' && 'Você receberá um relatório a cada 15 dias com suas transações.'}
+              {emailFrequency === 'monthly' && 'Você receberá um relatório mensal com suas transações.'}
+            </p>
+          </div>
+
+          <div className="flex gap-2">
+            <Button onClick={handleSaveEmailSettings} disabled={isLoading}>
+              {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Salvar Configurações de Email
+            </Button>
+            <Button 
+              onClick={handleSendTestEmail} 
+              disabled={isSendingTest || emailFrequency === 'never'} 
+              variant="outline"
+            >
+              {isSendingTest && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Enviar Email de Teste
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
       {isEditing && (
-        <div className="flex justify-end gap-2">
-          <Button type="button" variant="outline" onClick={handleCancel} disabled={isLoading}>
-            {t('settings.cancel')}
-          </Button>
-          <Button onClick={handleSubmit} disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {t('settings.save')}
-          </Button>
-        </div>
+        <FloatingSaveButton
+          onSave={handleSubmit}
+          onCancel={handleCancel}
+          isLoading={isLoading}
+          saveLabel={t('settings.save')}
+          cancelLabel={t('settings.cancel')}
+        />
       )}
     </div>
   );

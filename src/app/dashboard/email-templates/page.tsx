@@ -11,6 +11,7 @@ import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { useUser, useFirebase } from '@/firebase';
 import { Loader2, ArrowLeft, Eye } from 'lucide-react';
 import * as React from 'react';
+import { FloatingSaveButton } from '@/components/ui/floating-save-button';
 import { useToast } from '@/hooks/use-toast';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useRouter } from 'next/navigation';
@@ -39,7 +40,7 @@ export default function EmailTemplatesPage() {
   const [isLoading, setIsLoading] = React.useState(false);
   const [isEditing, setIsEditing] = React.useState(false);
   const [showPreview, setShowPreview] = React.useState(false);
-  const [previewTab, setPreviewTab] = React.useState<'welcome' | 'reset'>('welcome');
+  const [previewTab, setPreviewTab] = React.useState<'welcome' | 'reset' | 'report'>('welcome');
 
   const [welcomeTemplate, setWelcomeTemplate] = React.useState<EmailTemplate>({
     primaryColor: '#667eea',
@@ -69,6 +70,30 @@ export default function EmailTemplatesPage() {
     buttonTextColor: '#ffffff',
   });
 
+  const [reportTemplate, setReportTemplate] = React.useState<EmailTemplate>({
+    primaryColor: '#667eea',
+    secondaryColor: '#764ba2',
+    backgroundColor: '#f4f4f4',
+    textColor: '#333333',
+    fontFamily: 'Arial, sans-serif',
+    headerTitle: '📊 Relatório de Transações',
+    bodyText: 'Olá {nome},\n\nSegue o resumo das suas transações do período {periodo}:\n\n💰 Total de Receitas: {totalReceitas}\n💸 Total de Despesas: {totalDespesas}\n📈 Saldo do Período: {saldo}\n📝 Total de Transações: {totalTransacoes}\n\n{topCategorias}\n\nPara visualizar os detalhes completos, acesse o sistema.',
+    footerText: 'Este é um email automático de relatório. Por favor, não responda a esta mensagem.',
+    companyName: 'Sistema Financeiro',
+    buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+    buttonTextColor: '#ffffff',
+  });
+
+  const [reportOptions, setReportOptions] = React.useState({
+    showIncomeExpenseChart: true,
+    showCategoriesChart: true,
+    showTopCategories: true,
+    showMonthlyComparison: true,
+    includePeriodSummary: true,
+    showConversionData: true,
+    showConversionChart: true,
+  });
+
   // Redirect non-master users
   React.useEffect(() => {
     if (!permissionsLoading && !isMaster) {
@@ -88,6 +113,8 @@ export default function EmailTemplatesPage() {
             const data = templatesSnap.data();
             if (data.welcome) setWelcomeTemplate(data.welcome);
             if (data.reset) setResetTemplate(data.reset);
+            if (data.report) setReportTemplate(data.report);
+            if (data.reportOptions) setReportOptions(data.reportOptions);
           }
         } catch (error) {
           console.error('Erro ao carregar templates:', error);
@@ -114,6 +141,8 @@ export default function EmailTemplatesPage() {
       await setDoc(templatesRef, {
         welcome: welcomeTemplate,
         reset: resetTemplate,
+        report: reportTemplate,
+        reportOptions: reportOptions,
         updatedAt: new Date(),
       });
 
@@ -146,14 +175,81 @@ export default function EmailTemplatesPage() {
     return null;
   }
 
-  const generatePreviewHTML = (template: EmailTemplate, type: 'welcome' | 'reset') => {
+  const generatePreviewHTML = (template: EmailTemplate, type: 'welcome' | 'reset' | 'report') => {
     // Substituir variáveis no bodyText com valores de exemplo
-    const previewBody = template.bodyText
+    let previewBody = template.bodyText
       .replace(/{nome}/g, 'João Silva')
       .replace(/{email}/g, 'joao.silva@exemplo.com')
       .replace(/{senha}/g, 'Temp@2024Pass')
-      .replace(/{link}/g, '#')
-      .replace(/\n/g, '<br>');
+      .replace(/{link}/g, '#');
+
+    // Variáveis específicas do relatório e gráficos
+    let chartsHTML = '';
+    if (type === 'report') {
+      const topCategorias = reportOptions.showTopCategories 
+        ? 'Top 5 Categorias de Despesas:\n1. Alimentação - R$ 1.200,00\n2. Transporte - R$ 800,00\n3. Lazer - R$ 450,00\n4. Saúde - R$ 350,00\n5. Educação - R$ 300,00'
+        : '';
+      
+      previewBody = previewBody
+        .replace(/{periodo}/g, '01/12/2024 a 31/12/2024')
+        .replace(/{totalReceitas}/g, 'R$ 5.000,00')
+        .replace(/{totalDespesas}/g, 'R$ 3.100,00')
+        .replace(/{saldo}/g, 'R$ 1.900,00')
+        .replace(/{totalTransacoes}/g, '45')
+        .replace(/{topCategorias}/g, topCategorias);
+
+      // Gerar URLs de gráficos para preview
+      if (reportOptions.showIncomeExpenseChart) {
+        const chartConfig = {
+          type: 'bar',
+          data: {
+            labels: ['Receitas', 'Despesas'],
+            datasets: [{
+              label: 'Valor (R$)',
+              data: [5000, 3100],
+              backgroundColor: ['rgba(46, 125, 50, 0.8)', 'rgba(198, 40, 40, 0.8)']
+            }]
+          },
+          options: {
+            plugins: {
+              legend: { display: false },
+              title: { display: true, text: 'Receitas vs Despesas' }
+            }
+          }
+        };
+        const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=500&height=300&backgroundColor=white`;
+        chartsHTML += `<div style="margin: 20px 0; text-align: center;"><img src="${chartUrl}" alt="Gráfico Receitas vs Despesas" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"/></div>`;
+      }
+
+      if (reportOptions.showCategoriesChart) {
+        const chartConfig = {
+          type: 'doughnut',
+          data: {
+            labels: ['Alimentação', 'Transporte', 'Lazer', 'Saúde', 'Educação'],
+            datasets: [{
+              data: [1200, 800, 450, 350, 300],
+              backgroundColor: [
+                'rgba(255, 99, 132, 0.8)',
+                'rgba(54, 162, 235, 0.8)',
+                'rgba(255, 206, 86, 0.8)',
+                'rgba(75, 192, 192, 0.8)',
+                'rgba(153, 102, 255, 0.8)'
+              ]
+            }]
+          },
+          options: {
+            plugins: {
+              legend: { position: 'bottom' },
+              title: { display: true, text: 'Distribuição por Categorias' }
+            }
+          }
+        };
+        const chartUrl = `https://quickchart.io/chart?c=${encodeURIComponent(JSON.stringify(chartConfig))}&width=500&height=350&backgroundColor=white`;
+        chartsHTML += `<div style="margin: 20px 0; text-align: center;"><img src="${chartUrl}" alt="Gráfico de Categorias" style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"/></div>`;
+      }
+    }
+    
+    previewBody = previewBody.replace(/\n/g, '<br>');
 
     return `
 <!DOCTYPE html>
@@ -180,6 +276,7 @@ export default function EmailTemplatesPage() {
       </div>
       <div class="content">
         <p>${previewBody}</p>
+        ${chartsHTML}
         <div style="text-align: center;">
           <a href="#" class="button">Acessar Sistema</a>
         </div>
@@ -218,9 +315,10 @@ export default function EmailTemplatesPage() {
       </div>
 
       <Tabs defaultValue="welcome" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="welcome">Email de Boas-vindas</TabsTrigger>
           <TabsTrigger value="reset">Email de Reset de Senha</TabsTrigger>
+          <TabsTrigger value="report">Email de Relatório</TabsTrigger>
         </TabsList>
 
         <TabsContent value="welcome" className="space-y-4">
@@ -590,6 +688,289 @@ export default function EmailTemplatesPage() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="report" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Configurações do Email de Relatório</CardTitle>
+              <CardDescription>
+                Personalize o template e escolha quais informações incluir no relatório periódico de transações
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="report-primaryColor">Cor Primária</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="report-primaryColor"
+                      type="color"
+                      value={reportTemplate.primaryColor}
+                      onChange={(e) => setReportTemplate({ ...reportTemplate, primaryColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="w-20 h-10"
+                    />
+                    <Input
+                      type="text"
+                      value={reportTemplate.primaryColor}
+                      onChange={(e) => setReportTemplate({ ...reportTemplate, primaryColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="report-secondaryColor">Cor Secundária</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="report-secondaryColor"
+                      type="color"
+                      value={reportTemplate.secondaryColor}
+                      onChange={(e) => setReportTemplate({ ...reportTemplate, secondaryColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="w-20 h-10"
+                    />
+                    <Input
+                      type="text"
+                      value={reportTemplate.secondaryColor}
+                      onChange={(e) => setReportTemplate({ ...reportTemplate, secondaryColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="report-backgroundColor">Cor de Fundo</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="report-backgroundColor"
+                      type="color"
+                      value={reportTemplate.backgroundColor}
+                      onChange={(e) => setReportTemplate({ ...reportTemplate, backgroundColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="w-20 h-10"
+                    />
+                    <Input
+                      type="text"
+                      value={reportTemplate.backgroundColor}
+                      onChange={(e) => setReportTemplate({ ...reportTemplate, backgroundColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="report-textColor">Cor do Texto</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="report-textColor"
+                      type="color"
+                      value={reportTemplate.textColor}
+                      onChange={(e) => setReportTemplate({ ...reportTemplate, textColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="w-20 h-10"
+                    />
+                    <Input
+                      type="text"
+                      value={reportTemplate.textColor}
+                      onChange={(e) => setReportTemplate({ ...reportTemplate, textColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="report-fontFamily">Fonte</Label>
+                <Select 
+                  value={reportTemplate.fontFamily} 
+                  onValueChange={(value) => setReportTemplate({ ...reportTemplate, fontFamily: value })}
+                  disabled={!isEditing}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Arial, sans-serif">Arial</SelectItem>
+                    <SelectItem value="Georgia, serif">Georgia</SelectItem>
+                    <SelectItem value="'Courier New', monospace">Courier New</SelectItem>
+                    <SelectItem value="'Times New Roman', serif">Times New Roman</SelectItem>
+                    <SelectItem value="Verdana, sans-serif">Verdana</SelectItem>
+                    <SelectItem value="'Trebuchet MS', sans-serif">Trebuchet MS</SelectItem>
+                    <SelectItem value="'Segoe UI', sans-serif">Segoe UI</SelectItem>
+                    <SelectItem value="Roboto, sans-serif">Roboto</SelectItem>
+                    <SelectItem value="'Open Sans', sans-serif">Open Sans</SelectItem>
+                    <SelectItem value="Lato, sans-serif">Lato</SelectItem>
+                    <SelectItem value="Montserrat, sans-serif">Montserrat</SelectItem>
+                    <SelectItem value="Poppins, sans-serif">Poppins</SelectItem>
+                    <SelectItem value="'Playfair Display', serif">Playfair Display</SelectItem>
+                    <SelectItem value="Merriweather, serif">Merriweather</SelectItem>
+                    <SelectItem value="'Source Sans Pro', sans-serif">Source Sans Pro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="report-headerTitle">Título do Cabeçalho</Label>
+                <Input
+                  id="report-headerTitle"
+                  value={reportTemplate.headerTitle}
+                  onChange={(e) => setReportTemplate({ ...reportTemplate, headerTitle: e.target.value })}
+                  disabled={!isEditing}
+                  placeholder="📊 Relatório de Transações"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="report-companyName">Nome da Empresa/Sistema</Label>
+                <Input
+                  id="report-companyName"
+                  value={reportTemplate.companyName}
+                  onChange={(e) => setReportTemplate({ ...reportTemplate, companyName: e.target.value })}
+                  disabled={!isEditing}
+                  placeholder="Sistema Financeiro"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="report-bodyText">Texto do Email</Label>
+                <RichTextEditor
+                  value={reportTemplate.bodyText}
+                  onChange={(value) => setReportTemplate({ ...reportTemplate, bodyText: value })}
+                  disabled={!isEditing}
+                  placeholder="Digite o texto do email..."
+                  rows={10}
+                  additionalVariables={[
+                    { label: 'Período', value: '{periodo}' },
+                    { label: 'Total Receitas', value: '{totalReceitas}' },
+                    { label: 'Total Despesas', value: '{totalDespesas}' },
+                    { label: 'Saldo', value: '{saldo}' },
+                    { label: 'Total Transações', value: '{totalTransacoes}' },
+                    { label: 'Top Categorias', value: '{topCategorias}' },
+                    { label: 'Total Conversões', value: '{totalConversoes}' },
+                    { label: 'Valor Total Convertido', value: '{valorTotalConvertido}' },
+                    { label: 'Taxa Média', value: '{taxaMediaConversao}' },
+                    { label: 'Top Moedas', value: '{topMoedasConversao}' },
+                  ]}
+                />
+              </div>
+
+              <div className="space-y-3 border-t pt-4">
+                <Label>Opções do Relatório</Label>
+                <p className="text-sm text-muted-foreground mb-2">Escolha quais seções incluir no email de relatório:</p>
+                <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded mb-3">
+                  💡 Os gráficos selecionados aparecerão automaticamente no email enviado aos usuários!
+                </p>
+                
+                <div className="space-y-2">
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reportOptions.includePeriodSummary}
+                      onChange={(e) => setReportOptions({ ...reportOptions, includePeriodSummary: e.target.checked })}
+                      disabled={!isEditing}
+                      className="rounded"
+                    />
+                    <span className="text-sm">📝 Resumo do Período (Receitas, Despesas, Saldo)</span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reportOptions.showTopCategories}
+                      onChange={(e) => setReportOptions({ ...reportOptions, showTopCategories: e.target.checked })}
+                      disabled={!isEditing}
+                      className="rounded"
+                    />
+                    <span className="text-sm">🏆 Top 5 Categorias de Despesas</span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reportOptions.showIncomeExpenseChart}
+                      onChange={(e) => setReportOptions({ ...reportOptions, showIncomeExpenseChart: e.target.checked })}
+                      disabled={!isEditing}
+                      className="rounded"
+                    />
+                    <span className="text-sm">📊 Gráfico de Receitas vs Despesas</span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reportOptions.showCategoriesChart}
+                      onChange={(e) => setReportOptions({ ...reportOptions, showCategoriesChart: e.target.checked })}
+                      disabled={!isEditing}
+                      className="rounded"
+                    />
+                    <span className="text-sm">🎨 Gráfico de Distribuição por Categorias</span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reportOptions.showMonthlyComparison}
+                      onChange={(e) => setReportOptions({ ...reportOptions, showMonthlyComparison: e.target.checked })}
+                      disabled={!isEditing}
+                      className="rounded"
+                    />
+                    <span className="text-sm">📈 Comparação Mensal</span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reportOptions.showConversionData}
+                      onChange={(e) => setReportOptions({ ...reportOptions, showConversionData: e.target.checked })}
+                      disabled={!isEditing}
+                      className="rounded"
+                    />
+                    <span className="text-sm">💱 Dados de Conversões de Moeda</span>
+                  </label>
+
+                  <label className="flex items-center space-x-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={reportOptions.showConversionChart}
+                      onChange={(e) => setReportOptions({ ...reportOptions, showConversionChart: e.target.checked })}
+                      disabled={!isEditing}
+                      className="rounded"
+                    />
+                    <span className="text-sm">💹 Gráfico de Conversões</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="report-footerText">Texto do Rodapé</Label>
+                <Input
+                  id="report-footerText"
+                  value={reportTemplate.footerText}
+                  onChange={(e) => setReportTemplate({ ...reportTemplate, footerText: e.target.value })}
+                  disabled={!isEditing}
+                  placeholder="Este é um email automático de relatório..."
+                />
+              </div>
+
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setPreviewTab('report' as any);
+                  setShowPreview(true);
+                }}
+                className="w-full"
+              >
+                <Eye className="mr-2 h-4 w-4" />
+                Visualizar Preview
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
 
       {/* Dialog de Preview */}
@@ -597,13 +978,13 @@ export default function EmailTemplatesPage() {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              Preview do Email - {previewTab === 'welcome' ? 'Boas-vindas' : 'Reset de Senha'}
+              Preview do Email - {previewTab === 'welcome' ? 'Boas-vindas' : previewTab === 'reset' ? 'Reset de Senha' : 'Relatório de Transações'}
             </DialogTitle>
           </DialogHeader>
           <div className="border rounded-lg overflow-hidden">
             <iframe
               srcDoc={generatePreviewHTML(
-                previewTab === 'welcome' ? welcomeTemplate : resetTemplate,
+                previewTab === 'welcome' ? welcomeTemplate : previewTab === 'reset' ? resetTemplate : reportTemplate,
                 previewTab
               )}
               className="w-full h-[600px] border-0"
@@ -614,15 +995,13 @@ export default function EmailTemplatesPage() {
       </Dialog>
 
       {isEditing && (
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={() => setIsEditing(false)} disabled={isLoading}>
-            Cancelar
-          </Button>
-          <Button onClick={handleSave} disabled={isLoading}>
-            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Salvar Templates
-          </Button>
-        </div>
+        <FloatingSaveButton
+          onSave={handleSave}
+          onCancel={() => setIsEditing(false)}
+          isLoading={isLoading}
+          saveLabel="Salvar Templates"
+          cancelLabel="Cancelar"
+        />
       )}
     </div>
   );
