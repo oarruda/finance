@@ -125,7 +125,8 @@ export async function POST(request: NextRequest) {
     const { getMasterResendApiKey, getMasterResendConfig } = await import('@/lib/api-keys');
     
     let resendApiKey = process.env.RESEND_API_KEY || '';
-    let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Sistema Financeiro <onboarding@resend.dev>';
+    let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'onboarding@resend.dev';
+    let resendFromName = 'Sistema Financeiro';
     let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
     try {
@@ -138,6 +139,7 @@ export async function POST(request: NextRequest) {
       const masterConfig = await getMasterResendConfig();
       if (masterConfig) {
         resendFromEmail = masterConfig.resendFromEmail;
+        resendFromName = masterConfig.resendFromName || resendFromName;
         appUrl = masterConfig.appUrl;
         console.log('✅ Configurações do Resend encontradas em um dos MASTER users');
       }
@@ -519,7 +521,7 @@ export async function POST(request: NextRequest) {
 
     // Enviar email
     const { data, error } = await resend.emails.send({
-      from: resendFromEmail,
+      from: `${resendFromName} <${resendFromEmail}>`,
       to: [email],
       subject: `📊 Relatório Financeiro - ${new Date().toLocaleDateString('pt-BR')}`,
       html: emailHtml,

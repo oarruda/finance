@@ -122,9 +122,9 @@ export async function getMasterC6ApiKey(): Promise<string | null> {
 
 /**
  * Busca os emails configurados para o Resend em TODOS os usuários MASTER
- * @returns Objeto com resendFromEmail e appUrl, ou null
+ * @returns Objeto com resendFromEmail, resendFromName e appUrl, ou null
  */
-export async function getMasterResendConfig(): Promise<{ resendFromEmail: string; appUrl: string } | null> {
+export async function getMasterResendConfig(): Promise<{ resendFromEmail: string; resendFromName?: string; appUrl: string } | null> {
   try {
     const { firestore } = getServerSdks();
     
@@ -146,6 +146,7 @@ export async function getMasterResendConfig(): Promise<{ resendFromEmail: string
         console.log(`✅ Configurações do Resend encontradas no MASTER: ${masterId}`);
         return {
           resendFromEmail: userSettings.data.resendFromEmail,
+          resendFromName: userSettings.data.resendFromName || undefined,
           appUrl: userSettings.data.appUrl
         };
       } else {

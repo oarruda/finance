@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { RichTextEditor } from '@/components/ui/rich-text-editor';
 import { useUser, useFirebase } from '@/firebase';
-import { Loader2, ArrowLeft, Eye } from 'lucide-react';
+import { Loader2, ArrowLeft, Eye, Send } from 'lucide-react';
 import * as React from 'react';
 import { FloatingSaveButton } from '@/components/ui/floating-save-button';
 import { useToast } from '@/hooks/use-toast';
@@ -29,6 +29,7 @@ interface EmailTemplate {
   companyName: string;
   buttonColor: string;
   buttonTextColor: string;
+  senderName: string;
 }
 
 export default function EmailTemplatesPage() {
@@ -41,6 +42,7 @@ export default function EmailTemplatesPage() {
   const [isEditing, setIsEditing] = React.useState(false);
   const [showPreview, setShowPreview] = React.useState(false);
   const [previewTab, setPreviewTab] = React.useState<'welcome' | 'reset' | 'credentials' | 'report'>('welcome');
+  const [isSendingTest, setIsSendingTest] = React.useState(false);
 
   const [welcomeTemplate, setWelcomeTemplate] = React.useState<EmailTemplate>({
     primaryColor: '#667eea',
@@ -54,6 +56,7 @@ export default function EmailTemplatesPage() {
     companyName: 'FIN',
     buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     buttonTextColor: '#ffffff',
+    senderName: 'Equipe FIN',
   });
 
   const [resetTemplate, setResetTemplate] = React.useState<EmailTemplate>({
@@ -68,6 +71,7 @@ export default function EmailTemplatesPage() {
     companyName: 'Sistema Financeiro',
     buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     buttonTextColor: '#ffffff',
+    senderName: 'Sistema Financeiro',
   });
 
   const [reportTemplate, setReportTemplate] = React.useState<EmailTemplate>({
@@ -82,6 +86,7 @@ export default function EmailTemplatesPage() {
     companyName: 'Sistema Financeiro',
     buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     buttonTextColor: '#ffffff',
+    senderName: 'Sistema Financeiro',
   });
 
   const [credentialsTemplate, setCredentialsTemplate] = React.useState<EmailTemplate>({
@@ -96,6 +101,7 @@ export default function EmailTemplatesPage() {
     companyName: 'Finance App',
     buttonColor: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
     buttonTextColor: '#ffffff',
+    senderName: 'Finance App',
   });
 
   const [reportOptions, setReportOptions] = React.useState({
@@ -138,6 +144,58 @@ export default function EmailTemplatesPage() {
     };
     loadTemplates();
   }, [user, firestore]);
+
+  const handleSendTest = async (templateType: 'welcome' | 'reset' | 'credentials' | 'report') => {
+    if (!user?.email) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Usuário não identificado',
+      });
+      return;
+    }
+
+    setIsSendingTest(true);
+
+    try {
+      // Obter token do usuário
+      const token = await user.getIdToken();
+
+      const response = await fetch('/api/admin/send-test-email', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          templateType,
+          recipientEmail: user.email,
+          template: templateType === 'welcome' ? welcomeTemplate : 
+                    templateType === 'reset' ? resetTemplate : 
+                    templateType === 'credentials' ? credentialsTemplate : 
+                    reportTemplate,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Falha ao enviar email de teste');
+      }
+
+      toast({
+        title: 'Email de teste enviado!',
+        description: `Um email de teste foi enviado para ${user.email}`,
+      });
+    } catch (error: any) {
+      console.error('Erro ao enviar email de teste:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Erro ao enviar',
+        description: error.message,
+      });
+    } finally {
+      setIsSendingTest(false);
+    }
+  };
 
   const handleSave = async () => {
     if (!user?.uid || !firestore) {
@@ -309,28 +367,30 @@ export default function EmailTemplatesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => router.push('/system-settings')}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold font-headline tracking-tight">
-              Templates de Email
-            </h1>
-            <p className="text-muted-foreground">
-              Personalize a aparência dos emails enviados pelo sistema
-            </p>
-          </div>
+      <div className="flex items-center gap-4">
+        <Button variant="ghost" size="icon" onClick={() => router.push('/system-settings')}>
+          <ArrowLeft className="h-5 w-5" />
+        </Button>
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold font-headline tracking-tight">
+            Templates de Email
+          </h1>
+          <p className="text-muted-foreground">
+            Personalize a aparência dos emails enviados pelo sistema
+          </p>
         </div>
-        {!isEditing && (
-          <Button onClick={() => setIsEditing(true)}>
-            Editar Templates
-          </Button>
-        )}
       </div>
 
-      <Tabs defaultValue="welcome" className="w-full">
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex justify-end">
+          {!isEditing && (
+            <Button onClick={() => setIsEditing(true)}>
+              Editar Templates
+            </Button>
+          )}
+        </div>
+
+        <Tabs defaultValue="welcome" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="welcome">Email de Boas-vindas</TabsTrigger>
           <TabsTrigger value="reset">Email de Reset de Senha</TabsTrigger>
@@ -486,12 +546,23 @@ export default function EmailTemplatesPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="welcome-senderName">Nome do Remetente</Label>
+                <Input
+                  id="welcome-senderName"
+                  value={welcomeTemplate.senderName}
+                  onChange={(e) => setWelcomeTemplate({ ...welcomeTemplate, senderName: e.target.value })}
+                  disabled={!isEditing}
+                  placeholder="digite aqui seu e-mail"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="welcome-bodyText">Texto do Email</Label>
                 <RichTextEditor
                   value={welcomeTemplate.bodyText}
                   onChange={(value) => setWelcomeTemplate({ ...welcomeTemplate, bodyText: value })}
                   disabled={!isEditing}
-                  placeholder="Digite o texto do email..."
+                  placeholder="digite aqui seu e-mail"
                   rows={8}
                 />
               </div>
@@ -503,21 +574,32 @@ export default function EmailTemplatesPage() {
                   value={welcomeTemplate.footerText}
                   onChange={(e) => setWelcomeTemplate({ ...welcomeTemplate, footerText: e.target.value })}
                   disabled={!isEditing}
-                  placeholder="Este é um email automático..."
+                  placeholder="digite aqui seu e-mail"
                 />
               </div>
 
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setPreviewTab('welcome');
-                  setShowPreview(true);
-                }}
-                className="w-full"
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                Visualizar Preview
-              </Button>
+              <div className="grid grid-cols-2 gap-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setPreviewTab('welcome');
+                    setShowPreview(true);
+                  }}
+                  className="w-full"
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  Visualizar Preview
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={() => handleSendTest('welcome')}
+                  disabled={isSendingTest}
+                  className="w-full"
+                >
+                  {isSendingTest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  Enviar Teste
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -670,12 +752,23 @@ export default function EmailTemplatesPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="reset-senderName">Nome do Remetente</Label>
+                <Input
+                  id="reset-senderName"
+                  value={resetTemplate.senderName}
+                  onChange={(e) => setResetTemplate({ ...resetTemplate, senderName: e.target.value })}
+                  disabled={!isEditing}
+                  placeholder="digite aqui seu e-mail"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="reset-bodyText">Texto do Email</Label>
                 <RichTextEditor
                   value={resetTemplate.bodyText}
                   onChange={(value) => setResetTemplate({ ...resetTemplate, bodyText: value })}
                   disabled={!isEditing}
-                  placeholder="Digite o texto do email..."
+                  placeholder="digite aqui seu e-mail"
                   rows={8}
                 />
               </div>
@@ -687,21 +780,32 @@ export default function EmailTemplatesPage() {
                   value={resetTemplate.footerText}
                   onChange={(e) => setResetTemplate({ ...resetTemplate, footerText: e.target.value })}
                   disabled={!isEditing}
-                  placeholder="Este é um email automático..."
+                  placeholder="digite aqui seu e-mail"
                 />
               </div>
 
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setPreviewTab('reset');
-                  setShowPreview(true);
-                }}
-                className="w-full"
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                Visualizar Preview
-              </Button>
+              <div className="grid grid-cols-2 gap-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setPreviewTab('reset');
+                    setShowPreview(true);
+                  }}
+                  className="w-full"
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  Visualizar Preview
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={() => handleSendTest('reset')}
+                  disabled={isSendingTest}
+                  className="w-full"
+                >
+                  {isSendingTest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  Enviar Teste
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -718,46 +822,86 @@ export default function EmailTemplatesPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="credentials-primaryColor">Cor Primária</Label>
-                  <Input
-                    id="credentials-primaryColor"
-                    type="color"
-                    value={credentialsTemplate.primaryColor}
-                    onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, primaryColor: e.target.value })}
-                    disabled={!isEditing}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="credentials-primaryColor"
+                      type="color"
+                      value={credentialsTemplate.primaryColor}
+                      onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, primaryColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="w-20 h-10"
+                    />
+                    <Input
+                      type="text"
+                      value={credentialsTemplate.primaryColor}
+                      onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, primaryColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="credentials-secondaryColor">Cor Secundária</Label>
-                  <Input
-                    id="credentials-secondaryColor"
-                    type="color"
-                    value={credentialsTemplate.secondaryColor}
-                    onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, secondaryColor: e.target.value })}
-                    disabled={!isEditing}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="credentials-secondaryColor"
+                      type="color"
+                      value={credentialsTemplate.secondaryColor}
+                      onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, secondaryColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="w-20 h-10"
+                    />
+                    <Input
+                      type="text"
+                      value={credentialsTemplate.secondaryColor}
+                      onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, secondaryColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="credentials-backgroundColor">Cor de Fundo</Label>
-                  <Input
-                    id="credentials-backgroundColor"
-                    type="color"
-                    value={credentialsTemplate.backgroundColor}
-                    onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, backgroundColor: e.target.value })}
-                    disabled={!isEditing}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="credentials-backgroundColor"
+                      type="color"
+                      value={credentialsTemplate.backgroundColor}
+                      onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, backgroundColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="w-20 h-10"
+                    />
+                    <Input
+                      type="text"
+                      value={credentialsTemplate.backgroundColor}
+                      onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, backgroundColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="credentials-textColor">Cor do Texto</Label>
-                  <Input
-                    id="credentials-textColor"
-                    type="color"
-                    value={credentialsTemplate.textColor}
-                    onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, textColor: e.target.value })}
-                    disabled={!isEditing}
-                  />
+                  <div className="flex gap-2">
+                    <Input
+                      id="credentials-textColor"
+                      type="color"
+                      value={credentialsTemplate.textColor}
+                      onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, textColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="w-20 h-10"
+                    />
+                    <Input
+                      type="text"
+                      value={credentialsTemplate.textColor}
+                      onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, textColor: e.target.value })}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -798,7 +942,7 @@ export default function EmailTemplatesPage() {
                   value={credentialsTemplate.bodyText}
                   onChange={(value) => setCredentialsTemplate({ ...credentialsTemplate, bodyText: value })}
                   disabled={!isEditing}
-                  placeholder="Digite o corpo do email..."
+                  placeholder="digite aqui seu e-mail"
                 />
                 <p className="text-sm text-muted-foreground">
                   Use as variáveis: {'{nome}'}, {'{email}'}, {'{senha}'}
@@ -817,27 +961,49 @@ export default function EmailTemplatesPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="credentials-senderName">Nome do Remetente</Label>
+                <Input
+                  id="credentials-senderName"
+                  value={credentialsTemplate.senderName}
+                  onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, senderName: e.target.value })}
+                  disabled={!isEditing}
+                  placeholder="digite aqui seu e-mail"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="credentials-footerText">Texto do Rodapé</Label>
                 <Input
                   id="credentials-footerText"
                   value={credentialsTemplate.footerText}
                   onChange={(e) => setCredentialsTemplate({ ...credentialsTemplate, footerText: e.target.value })}
                   disabled={!isEditing}
-                  placeholder="Este é um email automático..."
+                  placeholder="digite aqui seu e-mail"
                 />
               </div>
 
-              <Button
-                onClick={() => {
-                  setPreviewTab('credentials');
-                  setShowPreview(true);
-                }}
-                variant="outline"
-                className="w-full"
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                Visualizar Preview
-              </Button>
+              <div className="grid grid-cols-2 gap-4">
+                <Button
+                  onClick={() => {
+                    setPreviewTab('credentials');
+                    setShowPreview(true);
+                  }}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  Visualizar Preview
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={() => handleSendTest('credentials')}
+                  disabled={isSendingTest}
+                  className="w-full"
+                >
+                  {isSendingTest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  Enviar Teste
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -990,12 +1156,23 @@ export default function EmailTemplatesPage() {
               </div>
 
               <div className="space-y-2">
+                <Label htmlFor="report-senderName">Nome do Remetente</Label>
+                <Input
+                  id="report-senderName"
+                  value={reportTemplate.senderName}
+                  onChange={(e) => setReportTemplate({ ...reportTemplate, senderName: e.target.value })}
+                  disabled={!isEditing}
+                  placeholder="digite aqui seu e-mail"
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label htmlFor="report-bodyText">Texto do Email</Label>
                 <RichTextEditor
                   value={reportTemplate.bodyText}
                   onChange={(value) => setReportTemplate({ ...reportTemplate, bodyText: value })}
                   disabled={!isEditing}
-                  placeholder="Digite o texto do email..."
+                  placeholder="digite aqui seu e-mail"
                   rows={10}
                   additionalVariables={[
                     { label: 'Período', value: '{periodo}' },
@@ -1106,25 +1283,37 @@ export default function EmailTemplatesPage() {
                   value={reportTemplate.footerText}
                   onChange={(e) => setReportTemplate({ ...reportTemplate, footerText: e.target.value })}
                   disabled={!isEditing}
-                  placeholder="Este é um email automático de relatório..."
+                  placeholder="digite aqui seu e-mail"
                 />
               </div>
 
-              <Button 
-                variant="outline" 
-                onClick={() => {
-                  setPreviewTab('report' as any);
-                  setShowPreview(true);
-                }}
-                className="w-full"
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                Visualizar Preview
-              </Button>
+              <div className="grid grid-cols-2 gap-4">
+                <Button 
+                  variant="outline" 
+                  onClick={() => {
+                    setPreviewTab('report' as any);
+                    setShowPreview(true);
+                  }}
+                  className="w-full"
+                >
+                  <Eye className="mr-2 h-4 w-4" />
+                  Visualizar Preview
+                </Button>
+                <Button
+                  variant="default"
+                  onClick={() => handleSendTest('report')}
+                  disabled={isSendingTest}
+                  className="w-full"
+                >
+                  {isSendingTest ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
+                  Enviar Teste
+                </Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
       </Tabs>
+      </div>
 
       {/* Dialog de Preview */}
       <Dialog open={showPreview} onOpenChange={setShowPreview}>

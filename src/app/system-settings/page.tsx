@@ -38,6 +38,7 @@ export default function SystemSettingsPage() {
     c6ApiKey: '',
     resendApiKey: '',
     resendFromEmail: '',
+    resendFromName: '',
     appUrl: '',
   });
 
@@ -68,6 +69,7 @@ export default function SystemSettingsPage() {
             c6ApiKey: result.data.c6ApiKey || '',
             resendApiKey: result.data.resendApiKey || '',
             resendFromEmail: result.data.resendFromEmail || '',
+            resendFromName: result.data.resendFromName || '',
             appUrl: result.data.appUrl || '',
           });
         }
@@ -321,24 +323,28 @@ export default function SystemSettingsPage() {
             Configure integrações de IA e APIs de bancos (apenas MASTER)
           </p>
         </div>
-        {!isEditing && (
-          <Button type="button" variant="outline" onClick={() => setIsEditing(true)}>
-            Editar Configurações
-          </Button>
-        )}
       </div>
 
-      <Tabs defaultValue="ai" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="ai">🤖 IA</TabsTrigger>
-          <TabsTrigger value="exchange">💱 Câmbio</TabsTrigger>
-          <TabsTrigger value="banks">🏦 Bancos</TabsTrigger>
-          <TabsTrigger value="email">📧 Email</TabsTrigger>
-        </TabsList>
+      <div className="max-w-4xl mx-auto space-y-6">
+        {!isEditing && (
+          <div className="flex justify-end">
+            <Button type="button" variant="outline" onClick={() => setIsEditing(true)}>
+              Editar Configurações
+            </Button>
+          </div>
+        )}
 
-        {/* AI APIs Tab */}
-        <TabsContent value="ai" className="space-y-4">
-          <Card>
+        <Tabs defaultValue="ai" className="w-full">
+          <TabsList className="grid w-full grid-cols-4">
+            <TabsTrigger value="ai">🤖 IA</TabsTrigger>
+            <TabsTrigger value="exchange">💱 Câmbio</TabsTrigger>
+            <TabsTrigger value="banks">🏦 Bancos</TabsTrigger>
+            <TabsTrigger value="email">📧 Email</TabsTrigger>
+          </TabsList>
+
+          {/* AI APIs Tab */}
+          <TabsContent value="ai" className="space-y-4">
+            <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -444,9 +450,9 @@ export default function SystemSettingsPage() {
         </Card>
         </TabsContent>
 
-        {/* Exchange Rate APIs Tab */}
-        <TabsContent value="exchange" className="space-y-4">
-          <Card>
+          {/* Exchange Rate APIs Tab */}
+          <TabsContent value="exchange" className="space-y-4">
+            <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -552,9 +558,9 @@ export default function SystemSettingsPage() {
         </Card>
         </TabsContent>
 
-        {/* Bank APIs Tab */}
-        <TabsContent value="banks" className="space-y-4">
-          <Card>
+          {/* Bank APIs Tab */}
+          <TabsContent value="banks" className="space-y-4">
+            <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -703,9 +709,9 @@ export default function SystemSettingsPage() {
         </Card>
         </TabsContent>
 
-        {/* Email API Tab */}
-        <TabsContent value="email" className="space-y-4">
-          <Card>
+          {/* Email API Tab */}
+          <TabsContent value="email" className="space-y-4">
+            <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
               <div>
@@ -782,6 +788,22 @@ export default function SystemSettingsPage() {
               <div className="text-xs text-muted-foreground space-y-1">
                 <p className="font-medium">Obtenha sua chave de API:</p>
                 <p>🔗 <a href="https://resend.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline hover:text-primary">Resend Dashboard</a> - Crie uma conta gratuita</p>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="resendFromName">Nome do Remetente</Label>
+              <Input
+                id="resendFromName"
+                name="resendFromName"
+                type="text"
+                value={formData.resendFromName}
+                onChange={handleInputChange}
+                placeholder="Sistema Financeiro"
+                disabled={!isEditing}
+              />
+              <div className="text-xs text-muted-foreground">
+                <p>Nome que aparecerá como remetente nos emails enviados</p>
               </div>
             </div>
 
@@ -863,8 +885,9 @@ export default function SystemSettingsPage() {
             </div>
           </CardContent>
         </Card>
-        </TabsContent>
-      </Tabs>
+          </TabsContent>
+        </Tabs>
+      </div>
 
       {isEditing && (
         <FloatingSaveButton

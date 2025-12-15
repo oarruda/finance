@@ -118,7 +118,8 @@ export async function POST(request: NextRequest) {
     const { getMasterResendApiKey, getMasterResendConfig } = await import('@/lib/api-keys');
     
     let resendApiKey = process.env.RESEND_API_KEY || '';
-    let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'Finance App <noreply@finances.rafaelarruda.com.br>';
+    let resendFromEmail = process.env.RESEND_FROM_EMAIL || 'noreply@finances.rafaelarruda.com.br';
+    let resendFromName = 'Finance App';
     let appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
     // Buscar API key e configurações de todos os MASTER users
@@ -132,6 +133,7 @@ export async function POST(request: NextRequest) {
       const masterConfig = await getMasterResendConfig();
       if (masterConfig) {
         resendFromEmail = masterConfig.resendFromEmail;
+        resendFromName = masterConfig.resendFromName || resendFromName;
         appUrl = masterConfig.appUrl;
         console.log('✅ Configurações do Resend encontradas em um dos MASTER users');
       }
@@ -169,17 +171,10 @@ export async function POST(request: NextRequest) {
     // Inicializar Resend com a chave configurada
     const resend = new Resend(resendApiKey);
 
-    // Substituir variáveis no template
-    const bodyText = template.bodyText
-      .replace(/{nome}/g, displayName)
-      .replace(/{email}/g, email)
-      .replace(/{senha}/g, temporaryPassword)
-      .replace(/\n/g, '<br>');
-
     // Enviar email com credenciais
     console.log('📧 Enviando email...');
     const { data, error } = await resend.emails.send({
-      from: resendFromEmail,
+      from: `${resendFromName} <${resendFromEmail}>`,
       to: email,
       subject: `${template.headerTitle.replace(/[^\w\s-]/g, '')} - ${template.companyName}`,
       html: `
@@ -187,49 +182,109 @@ export async function POST(request: NextRequest) {
         <html>
           <head>
             <meta charset="utf-8">
-            <style>
-              body { font-family: ${template.fontFamily}; line-height: 1.6; color: ${template.textColor}; background-color: ${template.backgroundColor}; }
-              .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-              .header { background: linear-gradient(135deg, ${template.primaryColor} 0%, ${template.secondaryColor} 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-              .content { background: white; padding: 30px; border-radius: 0 0 10px 10px; }
-              .credentials { background: ${template.backgroundColor}; padding: 20px; border-radius: 8px; border-left: 4px solid ${template.primaryColor}; margin: 20px 0; }
-              .credential-item { margin: 15px 0; }
-              .credential-label { font-weight: bold; color: ${template.primaryColor}; }
-              .credential-value { font-family: 'Courier New', monospace; background: #f0f0f0; padding: 8px 12px; border-radius: 4px; display: inline-block; margin-top: 5px; }
-              .button { display: inline-block; background: ${template.primaryColor}; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
-              .footer { text-align: center; color: #666; font-size: 12px; margin-top: 30px; }
-            </style>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${template.headerTitle}</title>
           </head>
-          <body>
-            <div class="container">
-              <div class="header">
-                <h1>${template.headerTitle}</h1>
-              </div>
-              <div class="content">
-                <p>${bodyText}</p>
-                
-                <div class="credentials">
-                  <div class="credential-item">
-                    <div class="credential-label">📧 Email:</div>
-                    <div class="credential-value">${email}</div>
-                  </div>
-                  <div class="credential-item">
-                    <div class="credential-label">🔑 Senha Temporária:</div>
-                    <div class="credential-value">${temporaryPassword}</div>
-                  </div>
-                </div>
-                
-                <div style="text-align: center;">
-                  <a href="${appUrl}" class="button">
-                    Acessar ${template.companyName}
-                  </a>
-                </div>
-              </div>
-              <div class="footer">
-                <p>${template.footerText}</p>
-                <p>© ${new Date().getFullYear()} ${template.companyName}. Todos os direitos reservados.</p>
-              </div>
-            </div>
+          <body style="margin: 0; padding: 0; font-family: ${template.fontFamily}; line-height: 1.6; color: ${template.textColor}; background-color: ${template.backgroundColor};">
+            <table role="presentation" style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td align="center" style="padding: 40px 0;">
+                  <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: white; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-radius: 10px; overflow: hidden;">
+                    <!-- Header -->
+                    <tr>
+                      <td style="background: linear-gradient(135deg, ${template.primaryColor} 0%, ${template.secondaryColor} 100%); padding: 40px 30px; text-align: center;">
+                        <h1 style="margin: 0; color: white; font-size: 28px; font-weight: bold;">${template.headerTitle}</h1>
+                      </td>
+                    </tr>
+                    
+                    <!-- Content -->
+                    <tr>
+                      <td style="padding: 40px 30px; background-color: white;">
+                        <p style="margin: 0 0 20px 0; font-size: 16px; color: ${template.textColor};">
+                          Olá <strong>${displayName}</strong>,
+                        </p>
+                        <p style="margin: 0 0 20px 0; font-size: 16px; color: ${template.textColor};">
+                          Suas credenciais de acesso ao <strong>${template.companyName}</strong> foram geradas. Use os dados abaixo para fazer login:
+                        </p>
+                        
+                        <!-- Credentials Box -->
+                        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: ${template.backgroundColor}; border-left: 4px solid ${template.primaryColor}; border-radius: 8px; margin: 30px 0;">
+                          <tr>
+                            <td style="padding: 25px;">
+                              <!-- Email -->
+                              <table role="presentation" style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
+                                <tr>
+                                  <td>
+                                    <p style="margin: 0 0 8px 0; font-weight: bold; color: ${template.primaryColor}; font-size: 14px;">
+                                      📧 Email:
+                                    </p>
+                                    <p style="margin: 0; font-family: 'Courier New', monospace; background: #f0f0f0; padding: 12px 16px; border-radius: 6px; font-size: 15px; color: #333;">
+                                      ${email}
+                                    </p>
+                                  </td>
+                                </tr>
+                              </table>
+                              
+                              <!-- Password -->
+                              <table role="presentation" style="width: 100%; border-collapse: collapse;">
+                                <tr>
+                                  <td>
+                                    <p style="margin: 0 0 8px 0; font-weight: bold; color: ${template.primaryColor}; font-size: 14px;">
+                                      🔑 Senha Temporária:
+                                    </p>
+                                    <p style="margin: 0; font-family: 'Courier New', monospace; background: #f0f0f0; padding: 12px 16px; border-radius: 6px; font-size: 15px; color: #333; letter-spacing: 1px;">
+                                      ${temporaryPassword}
+                                    </p>
+                                  </td>
+                                </tr>
+                              </table>
+                            </td>
+                          </tr>
+                        </table>
+                        
+                        <!-- Warning -->
+                        <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 6px; margin: 20px 0;">
+                          <tr>
+                            <td style="padding: 15px;">
+                              <p style="margin: 0; font-size: 14px; color: #856404;">
+                                ⚠️ <strong>Importante:</strong> Esta é uma senha temporária. Por questões de segurança, você será solicitado a alterá-la no primeiro acesso.
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
+                        
+                        <!-- Button -->
+                        <table role="presentation" style="width: 100%; border-collapse: collapse; margin: 30px 0;">
+                          <tr>
+                            <td align="center">
+                              <a href="${appUrl}" style="display: inline-block; background: linear-gradient(135deg, ${template.primaryColor} 0%, ${template.secondaryColor} 100%); color: white; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+                                🚀 Acessar ${template.companyName}
+                              </a>
+                            </td>
+                          </tr>
+                        </table>
+                        
+                        <p style="margin: 20px 0 0 0; font-size: 14px; color: #666;">
+                          Se você não solicitou este email, por favor ignore-o ou entre em contato com o administrador.
+                        </p>
+                      </td>
+                    </tr>
+                    
+                    <!-- Footer -->
+                    <tr>
+                      <td style="background-color: #f8f9fa; padding: 30px; text-align: center; border-top: 1px solid #e9ecef;">
+                        <p style="margin: 0 0 10px 0; font-size: 13px; color: #6c757d;">
+                          ${template.footerText}
+                        </p>
+                        <p style="margin: 0; font-size: 12px; color: #6c757d;">
+                          © ${new Date().getFullYear()} ${template.companyName}. Todos os direitos reservados.
+                        </p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
           </body>
         </html>
       `,

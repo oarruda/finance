@@ -26,6 +26,7 @@ export interface UserSettingsData {
   exchangeRateApiKey?: string;
   resendApiKey?: string;
   resendFromEmail?: string;
+  resendFromName?: string;
   appUrl?: string;
   avatarId?: string;
 }
@@ -74,6 +75,7 @@ export async function saveUserSettings(
       exchangeRateApiKey: data.exchangeRateApiKey || null,
       resendApiKey: data.resendApiKey || null,
       resendFromEmail: data.resendFromEmail || null,
+      resendFromName: data.resendFromName || null,
       appUrl: data.appUrl || null,
       avatarId: data.avatarId || 'user-1',
       updatedAt: new Date().toISOString(),
@@ -149,6 +151,7 @@ export async function getUserSettings(firestore: any, userId: string) {
         exchangeRateApiKey: data?.exchangeRateApiKey || '',
         resendApiKey: data?.resendApiKey || '',
         resendFromEmail: data?.resendFromEmail || '',
+        resendFromName: data?.resendFromName || '',
         appUrl: data?.appUrl || '',
         avatarId: data?.avatarId || 'user-1',
       },
