@@ -27,7 +27,7 @@ import {
 } from '../ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '../ui/badge';
-import { Loader2, Trash2, Eye, Mail, Ban, CheckCircle, Pencil } from 'lucide-react';
+import { Loader2, Trash2, Eye, Mail, Ban, CheckCircle, Pencil, Shuffle } from 'lucide-react';
 import { useCollection, useFirebase, useMemoFirebase } from '@/firebase';
 import { collection, query, doc, deleteDoc, updateDoc } from 'firebase/firestore';
 import { Skeleton } from '../ui/skeleton';
@@ -297,6 +297,19 @@ export function UserManagementTable() {
       timezone: user.timezone || '',
       defaultCurrency: user.defaultCurrency || '',
       defaultLanguage: user.defaultLanguage || '',
+    });
+  };
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$%&*';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(password);
+    toast({
+      title: 'Senha gerada',
+      description: 'Uma nova senha foi gerada automaticamente.',
     });
   };
 
@@ -693,15 +706,27 @@ export function UserManagementTable() {
                   </div>
                   <div className="space-y-2 col-span-2">
                     <Label htmlFor="newPassword">Nova Senha (Opcional)</Label>
-                    <Input
-                      id="newPassword"
-                      type="password"
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      placeholder="Digite uma nova senha (mínimo 8 caracteres)"
-                    />
+                    <div className="flex gap-2">
+                      <Input
+                        id="newPassword"
+                        type="text"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        placeholder="Digite uma nova senha (mínimo 8 caracteres)"
+                        className="flex-1"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        onClick={generateRandomPassword}
+                        title="Gerar senha aleatória"
+                      >
+                        <Shuffle className="h-4 w-4" />
+                      </Button>
+                    </div>
                     <p className="text-xs text-muted-foreground">
-                      Deixe em branco para manter a senha atual. Mínimo de 8 caracteres.
+                      Deixe em branco para manter a senha atual. Clique no botão para gerar uma senha aleatória.
                     </p>
                   </div>
                   <div className="space-y-2">
