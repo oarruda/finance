@@ -3,13 +3,14 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { AlertCircle, Check, Trash2 } from 'lucide-react';
+import { AlertCircle, Check, Trash2, Copy } from 'lucide-react';
 import * as React from 'react';
 
 interface ExchangeRateApiKeyLoaderProps {
   savedApiKey?: string;
   isEditing?: boolean;
   onLoaded?: (key: string) => void;
+  onDeleted?: () => void;
 }
 
 // Funções para gerenciar a chave no localStorage
@@ -34,9 +35,11 @@ function removeExchangeRateApiKeyFromClient(): void {
   }
 }
 
-export function ExchangeRateApiKeyLoader({ savedApiKey, isEditing = false, onLoaded }: ExchangeRateApiKeyLoaderProps) {
+export function ExchangeRateApiKeyLoader({ savedApiKey, isEditing = false, onLoaded, onDeleted }: ExchangeRateApiKeyLoaderProps) {
   const [apiKey, setApiKey] = React.useState('');
   const [isLoaded, setIsLoaded] = React.useState(false);
+  const [showSavedKey, setShowSavedKey] = React.useState(false);
+  const [copied, setCopied] = React.useState(false);
   const { toast } = useToast();
 
   // Carrega a chave salva ao montar o componente
@@ -49,7 +52,7 @@ export function ExchangeRateApiKeyLoader({ savedApiKey, isEditing = false, onLoa
       }
     };
     loadKey();
-  }, []);
+  }, [savedApiKey]);
 
   const handleLoadApiKey = () => {
     if (!savedApiKey) {
@@ -84,6 +87,41 @@ export function ExchangeRateApiKeyLoader({ savedApiKey, isEditing = false, onLoa
       title: 'Chave removida',
       description: 'A chave de API de Taxa de Câmbio foi removida desta sessão.',
     });
+  };
+
+  const handleDeleteFromSystem = async () => {
+    const confirmed = window.confirm(
+      'Tem certeza que deseja excluir esta chave de API do sistema? Esta ação não pode ser desfeita.'
+    );
+    
+    if (!confirmed) return;
+
+    // Remove da sessão do navegador
+    removeExchangeRateApiKeyFromClient();
+    setIsLoaded(false);
+    setApiKey('');
+
+    // Chama o callback para notificar o componente pai
+    if (onDeleted) {
+      onDeleted();
+    }
+
+    toast({
+      title: 'Chave excluída',
+      description: 'A chave de API de Taxa de Câmbio foi excluída do sistema.',
+    });
+  };
+
+  const handleCopyKey = () => {
+    if (savedApiKey) {
+      navigator.clipboard.writeText(savedApiKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+      toast({
+        title: 'Copiado',
+        description: 'Chave de API copiada para a área de transferência',
+      });
+    }
   };
 
   return (
@@ -137,18 +175,55 @@ export function ExchangeRateApiKeyLoader({ savedApiKey, isEditing = false, onLoa
         ) : (
           <div className="space-y-4">
             {savedApiKey ? (
-              <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">
-                  Você tem uma chave de API salva. Carregue-a para ativar nesta sessão.
-                </p>
-                <Button
-                  type="button"
-                  onClick={handleLoadApiKey}
-                  className="w-full"
-                  disabled={isEditing}
-                >
-                  Carregar chave salva
-                </Button>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Chave de API Salva no Sistema</p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setShowSavedKey(!showSavedKey)}
+                    className="h-6 text-xs"
+                  >
+                    {showSavedKey ? 'Ocultar' : 'Mostrar'}
+                  </Button>
+                </div>
+                <div className="p-3 bg-purple-100 dark:bg-purple-900 border border-purple-200 dark:border-purple-800 rounded-lg">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-mono text-purple-900 dark:text-purple-100 break-all">
+                      {showSavedKey ? savedApiKey : `${savedApiKey.substring(0, 12)}...${savedApiKey.slice(-8)}`}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyKey}
+                      className="h-7 px-2 shrink-0"
+                    >
+                      {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleLoadApiKey}
+                    className="flex-1"
+                    disabled={isEditing}
+                  >
+                    Carregar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    onClick={handleDeleteFromSystem}
+                    disabled={isEditing}
+                    title="Excluir chave do sistema"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">

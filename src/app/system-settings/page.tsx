@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useUser, useFirebase } from '@/firebase';
-import { Loader2, ShieldAlert } from 'lucide-react';
+import { Loader2, ShieldAlert, Trash2 } from 'lucide-react';
 import * as React from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { saveUserSettings, getUserSettings } from '@/lib/user-settings';
@@ -404,6 +404,24 @@ export default function SystemSettingsPage() {
                     description: 'A chave de API foi carregada com sucesso para esta sessão.',
                   });
                 }}
+                onDeleted={async () => {
+                  // Limpa a chave do formData e salva no Firestore
+                  setFormData(prev => ({ ...prev, aiApiKey: '' }));
+                  
+                  // Salva automaticamente no Firestore
+                  if (user?.uid && firestore && auth) {
+                    const currentData = await getUserSettings(firestore, user.uid);
+                    const dataToSave = {
+                      firstName: currentData.data?.firstName || '',
+                      lastName: currentData.data?.lastName || '',
+                      email: currentData.data?.email || user.email || '',
+                      timezone: currentData.data?.timezone || 'America/Sao_Paulo',
+                      ...(currentData.success && currentData.data ? currentData.data : {}),
+                      aiApiKey: '',
+                    };
+                    await saveUserSettings(firestore, auth, user.uid, user, dataToSave);
+                  }
+                }}
               />
             </div>
           </CardContent>
@@ -491,6 +509,24 @@ export default function SystemSettingsPage() {
                     title: 'API carregada',
                     description: 'A chave de API de Taxa de Câmbio foi carregada com sucesso para esta sessão.',
                   });
+                }}
+                onDeleted={async () => {
+                  // Limpa a chave do formData e salva no Firestore
+                  setFormData(prev => ({ ...prev, exchangeRateApiKey: '' }));
+                  
+                  // Salva automaticamente no Firestore
+                  if (user?.uid && firestore && auth) {
+                    const currentData = await getUserSettings(firestore, user.uid);
+                    const dataToSave = {
+                      firstName: currentData.data?.firstName || '',
+                      lastName: currentData.data?.lastName || '',
+                      email: currentData.data?.email || user.email || '',
+                      timezone: currentData.data?.timezone || 'America/Sao_Paulo',
+                      ...(currentData.success && currentData.data ? currentData.data : {}),
+                      exchangeRateApiKey: '',
+                    };
+                    await saveUserSettings(firestore, auth, user.uid, user, dataToSave);
+                  }
                 }}
               />
             </div>
@@ -610,6 +646,36 @@ export default function SystemSettingsPage() {
                         description: 'As chaves de API bancárias foram carregadas com sucesso para esta sessão.',
                       });
                     }}
+                    onWiseDeleted={async () => {
+                      setFormData(prev => ({ ...prev, wiseApiKey: '' }));
+                      if (user?.uid && firestore && auth) {
+                        const currentData = await getUserSettings(firestore, user.uid);
+                        const dataToSave = {
+                          firstName: currentData.data?.firstName || '',
+                          lastName: currentData.data?.lastName || '',
+                          email: currentData.data?.email || user.email || '',
+                          timezone: currentData.data?.timezone || 'America/Sao_Paulo',
+                          ...(currentData.success && currentData.data ? currentData.data : {}),
+                          wiseApiKey: '',
+                        };
+                        await saveUserSettings(firestore, auth, user.uid, user, dataToSave);
+                      }
+                    }}
+                    onC6Deleted={async () => {
+                      setFormData(prev => ({ ...prev, c6ApiKey: '' }));
+                      if (user?.uid && firestore && auth) {
+                        const currentData = await getUserSettings(firestore, user.uid);
+                        const dataToSave = {
+                          firstName: currentData.data?.firstName || '',
+                          lastName: currentData.data?.lastName || '',
+                          email: currentData.data?.email || user.email || '',
+                          timezone: currentData.data?.timezone || 'America/Sao_Paulo',
+                          ...(currentData.success && currentData.data ? currentData.data : {}),
+                          c6ApiKey: '',
+                        };
+                        await saveUserSettings(firestore, auth, user.uid, user, dataToSave);
+                      }
+                    }}
                   />
                 </div>
               </div>
@@ -636,8 +702,8 @@ export default function SystemSettingsPage() {
             {/* Status da Chave */}
             {formData.resendApiKey && !isEditing && (
               <div className="p-3 bg-indigo-50 dark:bg-indigo-950 border border-indigo-200 dark:border-indigo-800 rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1">
                     <p className="text-sm font-medium text-indigo-900 dark:text-indigo-100">
                       📧 Resend Email API
                     </p>
@@ -645,6 +711,37 @@ export default function SystemSettingsPage() {
                       {formData.resendApiKey.substring(0, 8)}...{formData.resendApiKey.slice(-4)}
                     </p>
                   </div>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    onClick={async () => {
+                      const confirmed = window.confirm(
+                        'Tem certeza que deseja excluir a chave de API do Resend do sistema? Esta ação não pode ser desfeita.'
+                      );
+                      if (!confirmed) return;
+                      setFormData(prev => ({ ...prev, resendApiKey: '' }));
+                      if (user?.uid && firestore && auth) {
+                        const currentData = await getUserSettings(firestore, user.uid);
+                        const dataToSave = {
+                          firstName: currentData.data?.firstName || '',
+                          lastName: currentData.data?.lastName || '',
+                          email: currentData.data?.email || user.email || '',
+                          timezone: currentData.data?.timezone || 'America/Sao_Paulo',
+                          ...(currentData.success && currentData.data ? currentData.data : {}),
+                          resendApiKey: '',
+                        };
+                        await saveUserSettings(firestore, auth, user.uid, user, dataToSave);
+                        toast({
+                          title: 'Chave excluída',
+                          description: 'A chave de API do Resend foi excluída do sistema.',
+                        });
+                      }
+                    }}
+                    title="Excluir chave do sistema"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 </div>
               </div>
             )}

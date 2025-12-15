@@ -11,6 +11,8 @@ interface BankApiKeyLoaderProps {
   savedC6Key?: string;
   isEditing?: boolean;
   onLoaded?: () => void;
+  onWiseDeleted?: () => void;
+  onC6Deleted?: () => void;
 }
 
 // Funções para gerenciar as chaves no localStorage
@@ -55,7 +57,7 @@ function removeC6ApiKeyFromClient(): void {
   }
 }
 
-export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, onLoaded }: BankApiKeyLoaderProps) {
+export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, onLoaded, onWiseDeleted, onC6Deleted }: BankApiKeyLoaderProps) {
   const [wiseLoaded, setWiseLoaded] = React.useState(false);
   const [c6Loaded, setC6Loaded] = React.useState(false);
   const { toast } = useToast();
@@ -133,6 +135,46 @@ export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, 
     });
   };
 
+  const handleDeleteWiseFromSystem = async () => {
+    const confirmed = window.confirm(
+      'Tem certeza que deseja excluir esta chave Wise do sistema? Esta ação não pode ser desfeita.'
+    );
+    
+    if (!confirmed) return;
+
+    removeWiseApiKeyFromClient();
+    setWiseLoaded(false);
+
+    if (onWiseDeleted) {
+      onWiseDeleted();
+    }
+
+    toast({
+      title: 'Chave excluída',
+      description: 'A chave de API Wise foi excluída do sistema.',
+    });
+  };
+
+  const handleDeleteC6FromSystem = async () => {
+    const confirmed = window.confirm(
+      'Tem certeza que deseja excluir esta chave C6 do sistema? Esta ação não pode ser desfeita.'
+    );
+    
+    if (!confirmed) return;
+
+    removeC6ApiKeyFromClient();
+    setC6Loaded(false);
+
+    if (onC6Deleted) {
+      onC6Deleted();
+    }
+
+    toast({
+      title: 'Chave excluída',
+      description: 'A chave de API C6 foi excluída do sistema.',
+    });
+  };
+
   return (
     <Card className="border-orange-200 dark:border-orange-900 bg-orange-50 dark:bg-orange-950">
       <CardHeader>
@@ -177,15 +219,27 @@ export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, 
               </Button>
             </div>
           ) : savedWiseKey ? (
-            <Button
-              type="button"
-              onClick={handleLoadWiseKey}
-              className="w-full"
-              disabled={isEditing}
-              variant="outline"
-            >
-              Carregar chave Wise salva
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={handleLoadWiseKey}
+                className="flex-1"
+                disabled={isEditing}
+                variant="outline"
+              >
+                Carregar
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                onClick={handleDeleteWiseFromSystem}
+                disabled={isEditing}
+                title="Excluir chave Wise do sistema"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           ) : (
             <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
               <p className="text-xs text-amber-900 dark:text-amber-100">
@@ -218,15 +272,27 @@ export function BankApiKeyLoader({ savedWiseKey, savedC6Key, isEditing = false, 
               </Button>
             </div>
           ) : savedC6Key ? (
-            <Button
-              type="button"
-              onClick={handleLoadC6Key}
-              className="w-full"
-              disabled={isEditing}
-              variant="outline"
-            >
-              Carregar chave C6 salva
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                onClick={handleLoadC6Key}
+                className="flex-1"
+                disabled={isEditing}
+                variant="outline"
+              >
+                Carregar
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                size="icon"
+                onClick={handleDeleteC6FromSystem}
+                disabled={isEditing}
+                title="Excluir chave C6 do sistema"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
           ) : (
             <div className="p-3 bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg">
               <p className="text-xs text-amber-900 dark:text-amber-100">

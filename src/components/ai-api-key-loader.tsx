@@ -14,12 +14,14 @@ interface AIApiKeyLoaderProps {
   savedApiKey?: string;
   isEditing?: boolean;
   onLoaded?: (key: string) => void;
+  onDeleted?: () => void;
 }
 
-export function AIApiKeyLoader({ savedApiKey, isEditing = false, onLoaded }: AIApiKeyLoaderProps) {
+export function AIApiKeyLoader({ savedApiKey, isEditing = false, onLoaded, onDeleted }: AIApiKeyLoaderProps) {
   const [apiKey, setApiKey] = React.useState('');
   const [isLoaded, setIsLoaded] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
+  const [showSavedKey, setShowSavedKey] = React.useState(false);
   const { toast } = useToast();
 
   // Carrega a chave salva ao montar o componente
@@ -32,7 +34,7 @@ export function AIApiKeyLoader({ savedApiKey, isEditing = false, onLoaded }: AIA
       }
     };
     loadKey();
-  }, []);
+  }, [savedApiKey]);
 
   const handleLoadApiKey = () => {
     if (!savedApiKey) {
@@ -75,6 +77,35 @@ export function AIApiKeyLoader({ savedApiKey, isEditing = false, onLoaded }: AIA
       title: 'Chave removida',
       description: 'A chave de API foi removida desta sessão.',
     });
+  };
+
+  const handleDeleteFromSystem = async () => {
+    const confirmed = window.confirm('Tem certeza que deseja excluir esta chave de API do sistema? Esta ação não pode ser desfeita.');
+    
+    if (!confirmed) return;
+
+    try {
+      // Remove da sessão local
+      removeAIApiKeyFromClient();
+      setIsLoaded(false);
+      setApiKey('');
+      
+      // Notifica o componente pai para salvar como vazio
+      if (onDeleted) {
+        onDeleted();
+      }
+      
+      toast({
+        title: 'Chave excluída',
+        description: 'A chave de API foi excluída do sistema.',
+      });
+    } catch (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Erro',
+        description: 'Não foi possível excluir a chave de API.',
+      });
+    }
   };
 
   return (
@@ -136,30 +167,60 @@ export function AIApiKeyLoader({ savedApiKey, isEditing = false, onLoaded }: AIA
             </Alert>
 
             {savedApiKey ? (
-              <div className="space-y-2">
-                <Label>Chave de API Salva</Label>
-                <div className="flex gap-2">
-                  <Input
-                    type="password"
-                    value={savedApiKey}
-                    readOnly
-                    className="flex-1"
-                  />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <Label>Chave de API Salva no Sistema</Label>
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    onClick={handleCopyKey}
-                    className="px-2"
+                    onClick={() => setShowSavedKey(!showSavedKey)}
+                    className="h-6 text-xs"
                   >
-                    <Copy className="h-4 w-4" />
+                    {showSavedKey ? 'Ocultar' : 'Mostrar'}
                   </Button>
                 </div>
-                {copied && (
-                  <p className="text-xs text-green-600 dark:text-green-400">
-                    Copiado para a área de transferência!
-                  </p>
-                )}
+                <div className="p-3 bg-blue-100 dark:bg-blue-900 border border-blue-200 dark:border-blue-800 rounded-lg">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-mono text-blue-900 dark:text-blue-100 break-all">
+                      {showSavedKey ? savedApiKey : `${savedApiKey.substring(0, 12)}...${savedApiKey.slice(-8)}`}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyKey}
+                      className="h-7 px-2 shrink-0"
+                    >
+                      {copied ? <Check className="h-4 w-4 text-green-600" /> : <Copy className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                  {copied && (
+                    <p className="text-xs text-green-700 dark:text-green-400 mt-1">
+                      Copiado!
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    onClick={handleLoadApiKey}
+                    className="flex-1"
+                    disabled={isEditing}
+                  >
+                    Carregar
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    size="icon"
+                    onClick={handleDeleteFromSystem}
+                    disabled={isEditing}
+                    title="Excluir chave do sistema"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
             ) : (
               <Alert variant="destructive">
@@ -169,14 +230,6 @@ export function AIApiKeyLoader({ savedApiKey, isEditing = false, onLoaded }: AIA
                 </AlertDescription>
               </Alert>
             )}
-
-            <Button
-              onClick={handleLoadApiKey}
-              disabled={!savedApiKey || isEditing}
-              className="w-full"
-            >
-              Carregar Chave de API
-            </Button>
           </div>
         )}
       </CardContent>
