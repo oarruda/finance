@@ -32,16 +32,19 @@ export default function Header() {
     EUR_BRL: 5.88,
     USD_BRL: 5.26,
   });
+  const [exchangeError, setExchangeError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
     const fetchRates = async () => {
       const data = await getExchangeRates();
       if (data.success) {
         setRates(data.rates);
+        setExchangeError(null);
+      } else {
+        setExchangeError('Erro ao buscar taxas de câmbio. Verifique a chave da API em Configurações do Sistema.');
       }
     };
     fetchRates();
-    
     // Atualizar a cada 5 minutos
     const interval = setInterval(fetchRates, 5 * 60 * 1000);
     return () => clearInterval(interval);
@@ -130,6 +133,11 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-[#3a3a3a] px-4 backdrop-blur md:px-6">
+      {exchangeError && (
+        <div className="absolute left-1/2 top-0 z-50 -translate-x-1/2 mt-2 bg-red-600 text-white px-4 py-1 rounded shadow text-xs">
+          {exchangeError}
+        </div>
+      )}
       <div className="md:hidden">
         <SidebarTrigger className="text-white" />
       </div>
