@@ -152,13 +152,23 @@ export async function POST(request: NextRequest) {
       console.log('Usando template padrão (erro ao carregar personalizado):', err);
     }
 
-    // Destacar senha no texto com formatação especial
+    // Destacar senha no texto com formatação especial (compatível com email clients)
     const passwordHighlight = `
-      <div style="background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%); border: 2px solid ${template.primaryColor}; border-radius: 8px; padding: 16px; margin: 20px 0; text-align: center;">
-        <div style="font-size: 12px; color: #666; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; font-weight: 600;">Sua Senha Temporária</div>
-        <div style="font-family: 'Courier New', Courier, monospace; font-size: 24px; font-weight: 700; color: ${template.primaryColor}; letter-spacing: 2px; user-select: all; padding: 8px; background: white; border-radius: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">${password}</div>
-        <div style="font-size: 11px; color: #999; margin-top: 8px;">👆 Clique para selecionar e copiar</div>
-      </div>
+      <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin: 20px 0;">
+        <tr>
+          <td align="center">
+            <table border="0" cellpadding="0" cellspacing="0" style="border: 2px solid ${template.primaryColor}; border-radius: 8px; background-color: #f8f9fa;">
+              <tr>
+                <td style="padding: 20px; text-align: center;">
+                  <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 12px; font-weight: bold; color: #666666; text-transform: uppercase; letter-spacing: 1px;">SUA SENHA TEMPORÁRIA</p>
+                  <p style="margin: 0; font-family: 'Courier New', Courier, monospace; font-size: 24px; font-weight: bold; color: ${template.primaryColor}; letter-spacing: 2px; padding: 10px; background-color: #ffffff; border-radius: 4px;">${password}</p>
+                  <p style="margin: 10px 0 0 0; font-family: Arial, sans-serif; font-size: 11px; color: #999999;">👆 Copie esta senha para fazer login</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      </table>
     `;
     
     const emailBody = template.bodyText
@@ -168,39 +178,61 @@ export async function POST(request: NextRequest) {
       .replace(/{link}/g, appUrl)
       .replace(/\n/g, '<br>');
 
-    // Criar HTML do email com template personalizado
+    // Criar HTML do email com template personalizado (compatível com todos os clientes de email)
     const emailHtml = `
-<!DOCTYPE html>
-<html>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
   <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=${template.fontFamily.replace(/ /g, '+')}:wght@400;600;700&display=swap" rel="stylesheet">
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>${template.headerTitle}</title>
   </head>
-  <body style="font-family: ${template.fontFamily}; line-height: 1.6; color: ${template.textColor}; background-color: ${template.backgroundColor}; margin: 0; padding: 20px;">
-    <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; margin: 0 auto; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+  <body style="margin: 0; padding: 0; background-color: ${template.backgroundColor};">
+    <table border="0" cellpadding="0" cellspacing="0" width="100%" style="background-color: ${template.backgroundColor}; padding: 20px 0;">
       <tr>
-        <td style="background: linear-gradient(135deg, ${template.primaryColor} 0%, ${template.secondaryColor} 100%); color: white; padding: 30px; text-align: center;">
-          <h1 style="margin: 0; font-size: 28px; font-weight: 700;">${template.headerTitle}</h1>
-        </td>
-      </tr>
-      <tr>
-        <td style="padding: 30px; color: ${template.textColor};">
-          <div style="line-height: 1.8; font-size: 15px;">
-            ${emailBody}
-          </div>
-          
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${appUrl}" style="display: inline-block; padding: 14px 32px; background: ${template.buttonColor}; color: ${template.buttonTextColor} !important; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">Acessar Sistema</a>
-          </div>
-        </td>
-      </tr>
-      <tr>
-        <td style="background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #e9ecef;">
-          <p style="margin: 5px 0;">${template.footerText}</p>
-          <p style="margin: 5px 0;">© ${new Date().getFullYear()} ${template.companyName}. Todos os direitos reservados.</p>
+        <td align="center">
+          <table border="0" cellpadding="0" cellspacing="0" width="600" style="background-color: #ffffff; max-width: 600px;">
+            <!-- Header -->
+            <tr>
+              <td align="center" bgcolor="${template.primaryColor}" style="padding: 40px 30px; background-color: ${template.primaryColor};">
+                <h1 style="margin: 0; font-family: Arial, sans-serif; font-size: 28px; font-weight: bold; color: #ffffff; line-height: 1.3;">${template.headerTitle}</h1>
+              </td>
+            </tr>
+            <!-- Body -->
+            <tr>
+              <td style="padding: 40px 30px; font-family: Arial, sans-serif; font-size: 15px; line-height: 1.8; color: ${template.textColor};">
+                ${emailBody}
+                
+                <!-- Button -->
+                <table border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-top: 30px; margin-bottom: 30px;">
+                  <tr>
+                    <td align="center">
+                      <table border="0" cellpadding="0" cellspacing="0">
+                        <tr>
+                          <td align="center" bgcolor="${template.primaryColor}" style="border-radius: 6px; background-color: ${template.primaryColor};">
+                            <a href="${appUrl}" target="_blank" style="display: inline-block; padding: 16px 36px; font-family: Arial, sans-serif; font-size: 16px; font-weight: bold; color: #ffffff; text-decoration: none; border-radius: 6px;">Acessar Sistema</a>
+                          </td>
+                        </tr>
+                      </table>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <!-- Footer -->
+            <tr>
+              <td bgcolor="#f8f9fa" style="padding: 30px; background-color: #f8f9fa; border-top: 1px solid #e9ecef;">
+                <table border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td align="center" style="font-family: Arial, sans-serif; font-size: 12px; line-height: 1.6; color: #666666;">
+                      <p style="margin: 0 0 10px 0;">${template.footerText}</p>
+                      <p style="margin: 0;">© ${new Date().getFullYear()} ${template.companyName}. Todos os direitos reservados.</p>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
         </td>
       </tr>
     </table>
