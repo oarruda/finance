@@ -119,7 +119,12 @@ export function SupportChat() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const convos: Conversation[] = [];
       snapshot.forEach((doc) => {
-        convos.push({ id: doc.id, ...doc.data() } as Conversation);
+        const data = doc.data();
+        // Filtrar conversas que o usuário atual ocultou
+        const deletedBy = data.deletedBy || [];
+        if (!deletedBy.includes(user.uid)) {
+          convos.push({ id: doc.id, ...data } as Conversation);
+        }
       });
       setConversations(convos);
     });
@@ -309,6 +314,7 @@ export function SupportChat() {
         lastMessageTime: Timestamp.now(),
         unreadCount: isMaster ? 0 : 1,
         status: 'open' as const,
+        deletedBy: [], // Limpar deletedBy quando nova mensagem for enviada
       };
 
       if (conversationSnap.exists()) {
@@ -350,23 +356,27 @@ export function SupportChat() {
   };
 
   const handleDeleteConversation = async (conversationId: string) => {
-    if (!firestore || !isMaster) return;
+    if (!firestore || !user) return;
 
-    const confirmDelete = window.confirm('Deseja realmente apagar esta conversa? Todas as mensagens serão perdidas.');
+    const confirmDelete = window.confirm('Deseja realmente ocultar esta conversa? Ela deixará de aparecer na sua lista.');
     if (!confirmDelete) return;
 
     try {
-      // Deletar todas as mensagens da conversa
-      const messagesRef = collection(firestore, 'supportMessages');
-      const q = query(messagesRef, where('conversationId', '==', conversationId));
-      const messagesSnapshot = await getDocs(q);
-      
-      const deletePromises = messagesSnapshot.docs.map(doc => deleteDoc(doc.ref));
-      await Promise.all(deletePromises);
-
-      // Deletar a conversa
+      // Soft delete: adicionar o UID do usuário atual ao array deletedBy
       const conversationRef = doc(firestore, 'supportConversations', conversationId);
-      await deleteDoc(conversationRef);
+      const conversationSnap = await getDoc(conversationRef);
+      
+      if (conversationSnap.exists()) {
+        const data = conversationSnap.data();
+        const deletedBy = data.deletedBy || [];
+        
+        // Adicionar usuário atual ao array de quem deletou
+        if (!deletedBy.includes(user.uid)) {
+          await updateDoc(conversationRef, {
+            deletedBy: [...deletedBy, user.uid]
+          });
+        }
+      }
 
       // Limpar seleção se estava selecionada
       if (selectedConversation === conversationId) {
@@ -375,14 +385,14 @@ export function SupportChat() {
       }
 
       toast({
-        title: 'Conversa apagada',
-        description: 'A conversa e todas as mensagens foram removidas com sucesso.',
+        title: 'Conversa ocultada',
+        description: 'A conversa foi removida da sua lista. As mensagens foram preservadas para o outro usuário.',
       });
     } catch (error: any) {
-      console.error('Erro ao apagar conversa:', error);
+      console.error('Erro ao ocultar conversa:', error);
       toast({
         title: 'Erro',
-        description: error.message || 'Não foi possível apagar a conversa.',
+        description: error.message || 'Não foi possível ocultar a conversa.',
         variant: 'destructive',
       });
     }
