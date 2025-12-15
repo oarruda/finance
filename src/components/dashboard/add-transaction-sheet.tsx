@@ -71,10 +71,14 @@ export function AddTransactionSheet() {
 
   const getLocale = () => {
     switch (language) {
-      case 'pt':
+      case 'PT-BR':
+      case 'pt-BR':
         return ptBR;
-      case 'es':
+      case 'ES-ES':
+      case 'es-ES':
         return es;
+      case 'EN-US':
+      case 'en-US':
       default:
         return enUS;
     }

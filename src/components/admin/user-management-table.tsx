@@ -61,6 +61,7 @@ export function UserManagementTable() {
   const [viewingUser, setViewingUser] = React.useState<User | null>(null);
   const [editingUser, setEditingUser] = React.useState<User | null>(null);
   const [editFormData, setEditFormData] = React.useState<Partial<User>>({});
+  const [newPassword, setNewPassword] = React.useState('');
   const [isSavingEdit, setIsSavingEdit] = React.useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false);
   const [userToDelete, setUserToDelete] = React.useState<User | null>(null);
@@ -304,6 +305,7 @@ export function UserManagementTable() {
 
     setIsSavingEdit(true);
     try {
+      // Atualizar dados do Firestore
       const userRef = doc(firestore, 'users', editingUser.id);
       const updateData = {
         ...editFormData,
@@ -311,6 +313,42 @@ export function UserManagementTable() {
       };
 
       await updateDoc(userRef, updateData);
+
+      // Se houver nova senha, atualizar no Firebase Auth
+      if (newPassword && newPassword.trim().length > 0) {
+        if (newPassword.length < 8) {
+          toast({
+            variant: 'destructive',
+            title: 'Senha inválida',
+            description: 'A senha deve ter pelo menos 8 caracteres.',
+          });
+          setIsSavingEdit(false);
+          return;
+        }
+
+        const idToken = await auth.currentUser?.getIdToken();
+        const response = await fetch('/api/admin/update-user-password', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            userId: editingUser.id,
+            newPassword: newPassword,
+          }),
+        });
+
+        if (!response.ok) {
+          const error = await response.json();
+          throw new Error(error.error || 'Erro ao atualizar senha');
+        }
+
+        toast({
+          title: 'Senha atualizada',
+          description: 'A senha do usuário foi alterada com sucesso.',
+        });
+      }
 
       // Atualizar lista local
       if (setData && users) {
@@ -328,6 +366,7 @@ export function UserManagementTable() {
 
       setEditingUser(null);
       setEditFormData({});
+      setNewPassword('');
     } catch (error: any) {
       console.error('Erro ao atualizar usuário:', error);
       toast({
@@ -619,6 +658,7 @@ export function UserManagementTable() {
       <Dialog open={!!editingUser} onOpenChange={() => {
         setEditingUser(null);
         setEditFormData({});
+        setNewPassword('');
       }}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -650,6 +690,19 @@ export function UserManagementTable() {
                       onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}
                       placeholder="Sobrenome"
                     />
+                  </div>
+                  <div className="space-y-2 col-span-2">
+                    <Label htmlFor="newPassword">Nova Senha (Opcional)</Label>
+                    <Input
+                      id="newPassword"
+                      type="password"
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Digite uma nova senha (mínimo 8 caracteres)"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Deixe em branco para manter a senha atual. Mínimo de 8 caracteres.
+                    </p>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
@@ -839,6 +892,7 @@ export function UserManagementTable() {
               onClick={() => {
                 setEditingUser(null);
                 setEditFormData({});
+                setNewPassword('');
               }}
               disabled={isSavingEdit}
             >
