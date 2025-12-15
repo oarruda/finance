@@ -11,8 +11,8 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirebase } from '@/firebase';
 import { usePermissions } from '@/hooks/use-permissions';
 import { useToast } from '@/hooks/use-toast';
-import { MessageCircle, Send, Loader2, User, Users, CheckCircle } from 'lucide-react';
-import { collection, query, orderBy, addDoc, onSnapshot, where, Timestamp, getDocs, doc, updateDoc, setDoc, getDoc } from 'firebase/firestore';
+import { MessageCircle, Send, Loader2, User, Users, CheckCircle, Bell, BellOff, Trash2 } from 'lucide-react';
+import { collection, query, orderBy, addDoc, onSnapshot, where, Timestamp, getDocs, doc, updateDoc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import { formatDistanceToNow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -64,10 +64,20 @@ export function SupportChat() {
   const [isLoadingMessages, setIsLoadingMessages] = React.useState(false);
   const [showUserList, setShowUserList] = React.useState(false);
   const [hasPendingSupport, setHasPendingSupport] = React.useState(false);
+  const [soundEnabled, setSoundEnabled] = React.useState(true);
+  const [lastMessageCount, setLastMessageCount] = React.useState(0);
   const scrollRef = React.useRef<HTMLDivElement>(null);
+  const audioRef = React.useRef<HTMLAudioElement | null>(null);
 
   // ID da conversa do usuário atual (não-master) ou conversa selecionada (master)
   const activeConversationId = isMaster ? selectedConversation : user?.uid;
+
+  // Inicializar áudio de notificação
+  React.useEffect(() => {
+    // Criar elemento de áudio com som de sino
+    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFAhGn+DyvmwhBSF+zO/aizsIEl2x6OOPSQwPS6Xf8LRqIQQ2jdXz0n0pBSZ8x/DalEIIFFu06OynVxQHRp/g8r9vHwUfe8/v2404CBBftejgjE0MDVCn4O+0bSAENY3U89F9KgUme8jv2pRBCBRasejspVcUB0ef4PK+cR8FH3vP79qNOQgPX7Xo4I1ND')]); 
+    audioRef.current.volume = 0.5;
+  }, []);
 
   // Carregar conversas (apenas para MASTER)
   React.useEffect(() => {
@@ -236,6 +246,18 @@ export function SupportChat() {
     }
   }, [messages]);
 
+  // Detectar novas mensagens e tocar som
+  React.useEffect(() => {
+    if (messages.length > lastMessageCount && lastMessageCount > 0) {
+      const newMessage = messages[messages.length - 1];
+      // Tocar som apenas se a mensagem não for do próprio usuário e o som estiver ativado
+      if (newMessage.senderId !== user?.uid && soundEnabled && audioRef.current) {
+        audioRef.current.play().catch(err => console.log('Erro ao tocar som:', err));
+      }
+    }
+    setLastMessageCount(messages.length);
+  }, [messages, user?.uid, soundEnabled, lastMessageCount]);
+
   const handleSendMessage = async () => {
     if (!message.trim() || !user || !firestore) return;
 
@@ -293,6 +315,45 @@ export function SupportChat() {
       });
     } finally {
       setIsSending(false);
+    }
+  };
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    if (!firestore || !isMaster) return;
+
+    const confirmDelete = window.confirm('Deseja realmente apagar esta conversa? Todas as mensagens serão perdidas.');
+    if (!confirmDelete) return;
+
+    try {
+      // Deletar todas as mensagens da conversa
+      const messagesRef = collection(firestore, 'supportMessages');
+      const q = query(messagesRef, where('conversationId', '==', conversationId));
+      const messagesSnapshot = await getDocs(q);
+      
+      const deletePromises = messagesSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deletePromises);
+
+      // Deletar a conversa
+      const conversationRef = doc(firestore, 'supportConversations', conversationId);
+      await deleteDoc(conversationRef);
+
+      // Limpar seleção se estava selecionada
+      if (selectedConversation === conversationId) {
+        setSelectedConversation(null);
+        setSelectedUser(null);
+      }
+
+      toast({
+        title: 'Conversa apagada',
+        description: 'A conversa e todas as mensagens foram removidas com sucesso.',
+      });
+    } catch (error: any) {
+      console.error('Erro ao apagar conversa:', error);
+      toast({
+        title: 'Erro',
+        description: error.message || 'Não foi possível apagar a conversa.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -400,40 +461,61 @@ export function SupportChat() {
         conversations.map((convo) => (
           <Card
             key={convo.id}
-            className={`cursor-pointer transition-colors hover:bg-accent ${
+            className={`transition-colors hover:bg-accent ${
               selectedConversation === convo.id ? 'border-primary' : ''
             }`}
-            onClick={() => setSelectedConversation(convo.id)}
           >
             <CardHeader className="p-4">
               <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
+                <div 
+                  className="flex items-center gap-2 flex-1 cursor-pointer"
+                  onClick={() => setSelectedConversation(convo.id)}
+                >
                   <Avatar className="h-8 w-8">
                     <AvatarFallback>
                       {convo.userName.substring(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <div>
+                  <div className="flex-1">
                     <CardTitle className="text-sm">{convo.userName}</CardTitle>
                     <CardDescription className="text-xs">{convo.userEmail}</CardDescription>
                   </div>
                 </div>
-                {convo.unreadCount > 0 && (
-                  <Badge variant="destructive" className="ml-2">
-                    {convo.unreadCount}
-                  </Badge>
-                )}
+                <div className="flex items-center gap-2">
+                  {convo.unreadCount > 0 && (
+                    <Badge variant="destructive">
+                      {convo.unreadCount}
+                    </Badge>
+                  )}
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteConversation(convo.id);
+                    }}
+                    className="h-7 w-7 text-destructive hover:text-destructive hover:bg-destructive/10"
+                    title="Apagar conversa"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
-                {convo.lastMessage}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {convo.lastMessageTime &&
-                  formatDistanceToNow(convo.lastMessageTime.toDate(), {
-                    addSuffix: true,
-                    locale: ptBR,
-                  })}
-              </p>
+              <div 
+                className="cursor-pointer"
+                onClick={() => setSelectedConversation(convo.id)}
+              >
+                <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                  {convo.lastMessage}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {convo.lastMessageTime &&
+                    formatDistanceToNow(convo.lastMessageTime.toDate(), {
+                      addSuffix: true,
+                      locale: ptBR,
+                    })}
+                </p>
+              </div>
             </CardHeader>
           </Card>
         ))
@@ -524,10 +606,24 @@ export function SupportChat() {
       </SheetTrigger>
       <SheetContent side="right" className="w-full sm:w-[500px] sm:max-w-[500px]">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">
-            <MessageCircle className="h-5 w-5" />
-            {isMaster ? 'Central de Suporte' : 'Suporte'}
-          </SheetTitle>
+          <div className="flex items-center justify-between">
+            <SheetTitle className="flex items-center gap-2">
+              <MessageCircle className="h-5 w-5" />
+              {isMaster ? 'Central de Suporte' : 'Suporte'}
+            </SheetTitle>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              title={soundEnabled ? 'Desativar som de notificação' : 'Ativar som de notificação'}
+            >
+              {soundEnabled ? (
+                <Bell className="h-4 w-4" />
+              ) : (
+                <BellOff className="h-4 w-4 text-muted-foreground" />
+              )}
+            </Button>
+          </div>
           <SheetDescription>
             {isMaster
               ? 'Gerencie conversas de suporte com os usuários'
@@ -580,18 +676,28 @@ export function SupportChat() {
           {((!isMaster) || (isMaster && selectedConversation)) && (
             <>
               {isMaster && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setSelectedConversation(null);
-                    setSelectedUser(null);
-                    setShowUserList(false);
-                  }}
-                  className="mb-2"
-                >
-                  ← Voltar para lista
-                </Button>
+                <div className="flex gap-2 mb-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedConversation(null);
+                      setSelectedUser(null);
+                      setShowUserList(false);
+                    }}
+                    className="flex-1"
+                  >
+                    ← Voltar para lista
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => selectedConversation && handleDeleteConversation(selectedConversation)}
+                    title="Apagar conversa"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
               )}
 
               {renderMessages()}
