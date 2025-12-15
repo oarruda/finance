@@ -5,10 +5,14 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import * as z from 'zod';
 import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale/pt-BR';
+import { enUS } from 'date-fns/locale/en-US';
+import { es } from 'date-fns/locale/es';
 import { Calendar as CalendarIcon, Loader2, Plus, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import {
   Form,
   FormControl,
@@ -56,12 +60,25 @@ const formSchema = z.object({
 
 export function AddTransactionSheet() {
   const [open, setOpen] = React.useState(false);
+  const [datePickerOpen, setDatePickerOpen] = React.useState(false);
   const [isSuggesting, setIsSuggesting] = React.useState(false);
   const [recentCategories, setRecentCategories] = React.useState<string[]>([]);
+  const [isMobile, setIsMobile] = React.useState(false);
   const { toast } = useToast();
   const { user } = useUser();
   const { firestore } = useFirebase();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+
+  const getLocale = () => {
+    switch (language) {
+      case 'pt':
+        return ptBR;
+      case 'es':
+        return es;
+      default:
+        return enUS;
+    }
+  };
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -72,6 +89,16 @@ export function AddTransactionSheet() {
       currency: 'BRL',
     },
   });
+
+  // Detectar se é mobile
+  React.useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 640);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Carregar categorias recentes ao abrir o sheet
   React.useEffect(() => {
@@ -300,9 +327,10 @@ export function AddTransactionSheet() {
             render={({ field }) => (
                 <FormItem className="flex flex-col">
                 <FormLabel>{t('transactions.date')}</FormLabel>
-                <Popover>
-                    <PopoverTrigger asChild>
-                    <FormControl>
+                {isMobile ? (
+                  <Dialog open={datePickerOpen} onOpenChange={setDatePickerOpen}>
+                    <DialogTrigger asChild>
+                      <FormControl>
                         <Button
                         variant={'outline'}
                         className={cn(
@@ -311,26 +339,64 @@ export function AddTransactionSheet() {
                         )}
                         >
                         {field.value ? (
-                            format(new Date(field.value), 'PPP')
+                            format(new Date(field.value), 'PPP', { locale: getLocale() })
                         ) : (
                             <span>{t('transactions.selectDate')}</span>
                         )}
                         <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                         </Button>
-                    </FormControl>
+                      </FormControl>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-[425px]">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => {
+                          field.onChange(date);
+                          setDatePickerOpen(false);
+                        }}
+                        disabled={(date) =>
+                          date > new Date() || date < new Date('1900-01-01')
+                        }
+                        locale={getLocale()}
+                        initialFocus
+                      />
+                    </DialogContent>
+                  </Dialog>
+                ) : (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                        variant={'outline'}
+                        className={cn(
+                            'w-full pl-3 text-left font-normal',
+                            !field.value && 'text-muted-foreground'
+                        )}
+                        >
+                        {field.value ? (
+                            format(new Date(field.value), 'PPP', { locale: getLocale() })
+                        ) : (
+                            <span>{t('transactions.selectDate')}</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
+                      <Calendar
                         mode="single"
                         selected={field.value}
                         onSelect={field.onChange}
                         disabled={(date) =>
-                        date > new Date() || date < new Date('1900-01-01')
+                          date > new Date() || date < new Date('1900-01-01')
                         }
+                        locale={getLocale()}
                         initialFocus
-                    />
+                      />
                     </PopoverContent>
-                </Popover>
+                  </Popover>
+                )}
                 <FormMessage />
                 </FormItem>
             )}
