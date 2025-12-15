@@ -54,6 +54,10 @@ export default function SystemSettingsPage() {
         const result = await getUserSettings(firestore, user.uid);
         
         if (result.success && result.data) {
+          console.log('📋 Carregando configurações do Firestore:', {
+            exchangeRateProvider: result.data.exchangeRateProvider,
+            exchangeRateApiKey: result.data.exchangeRateApiKey ? '***' : 'vazio'
+          });
           setFormData({
             aiProvider: result.data.aiProvider || 'gemini',
             aiApiKey: result.data.aiApiKey || '',
@@ -104,6 +108,8 @@ export default function SystemSettingsPage() {
       };
 
       console.log('=== SALVANDO CONFIGURAÇÕES ===');
+      console.log('exchangeRateProvider:', dataToSave.exchangeRateProvider);
+      console.log('exchangeRateApiKey:', dataToSave.exchangeRateApiKey ? `${dataToSave.exchangeRateApiKey.substring(0, 8)}...` : 'NÃO DEFINIDA');
       console.log('resendApiKey:', dataToSave.resendApiKey ? `${dataToSave.resendApiKey.substring(0, 8)}...` : 'NÃO DEFINIDA');
       console.log('resendFromEmail:', dataToSave.resendFromEmail);
       console.log('appUrl:', dataToSave.appUrl);
